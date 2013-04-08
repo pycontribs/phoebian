@@ -79,11 +79,6 @@ products = {
 }
 
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%Y-%m-%d %H:%M',
-                    )
-
 def get_cmd_output(cmd):
     stdout_handle = os.popen(cmd)
     text = stdout_handle.read()
@@ -94,8 +89,17 @@ def get_cmd_output(cmd):
 
 parser = OptionParser()
 parser.add_option("-y", dest="force", default=False, action="store_true",
-                  help="Force updater to do the peform the upgrade, by default it doesn't do it.", )
+                  help="Force updater to do the peform the upgrade.")
+parser.add_option("-q", dest="quiet", default=False, action="store_true",help="no output if nothing is wrong, good for cron usage.")
 (options, args) = parser.parse_args()
+
+loglevel = logging.WARNING
+if not options.quiet:
+   loglevel = logging.DEBUG
+logging.basicConfig(level=loglevel,
+                    format='%(asctime)s %(levelname)-8s %(message)s',
+                    datefmt='%Y-%m-%d %H:%M',
+                    )
 
 product = None
 for product in products:
