@@ -105,11 +105,7 @@ product = None
 for product in products:
     if not os.path.isfile('/etc/init.d/%s' % product) or not os.path.exists(products[product]['path']):
         logging.info("`%s` not found..." % product)
-        break
-
-    if not os.path.exists(products[product]['path']):
-      logging.debug('Unable to find %s installation' % product)
-      break
+        continue
 
     cwd = os.getcwd()
     os.chdir(products[product]['path'])
