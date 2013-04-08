@@ -1,0 +1,26 @@
+<JiraJelly xmlns:jira="jelly:com.atlassian.jira.jelly.enterprise.JiraTagLib" xmlns:core="jelly:core" xmlns:log="jelly:log" >
+<jira:Login username="atlassiansupport" password="[your password]">
+    <log:warn>Running Inactivate issues service</log:warn>
+    <!-- Properties for the script -->
+    <core:set var="comment">This issue has not been updated for 5 business days.
+ 
+If you have an update, please use "Add Comments For Atlassian" action to let us know. If you need more time to gather information please let us know and we will 'freeze' this issue. If you have no other questions, please Close this issue.
+ 
+If no update is received in the next 5 business days, this issue will be automatically closed.
+ 
+Thank you,
+ 
+  The Atlassian Support Team</core:set>
+    <core:set var="workflowStep" value="Mark Inactive" />
+    <core:set var="workflowUser" value="atlassiansupport" />
+    <core:set var="filter7Days" value="11505" />
+ 
+    <!-- Run the SearchRequestFilter -->
+    <jira:RunSearchRequest filterid="${filter7Days}" var="issues" />
+ 
+    <core:forEach var="issue" items="${issues}">
+        <log:warn>Inactivating issue ${issue.key}</log:warn>
+        <jira:TransitionWorkflow key="${issue.key}" user="${workflowUser}" workflowAction="${workflowStep}" comment="${comment}"/>
+    </core:forEach>
+</jira:Login>
+</JiraJelly>

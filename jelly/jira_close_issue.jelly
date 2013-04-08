@@ -1,0 +1,25 @@
+<JiraJelly xmlns:jira="jelly:com.atlassian.jira.jelly.enterprise.JiraTagLib" xmlns:core="jelly:core" xmlns:log="jelly:log" >
+<jira:Login username="atlassiansupport" password="[your password]">
+    <log:info>Running Close issues service</log:info>
+    <!-- Properties for the script -->
+    <core:set var="comment">This issue has not been updated for 10 business days and will be Closed.
+ 
+If this issue has not been completed please reopen this issue and we will do our best to help you as soon as we can.
+ 
+Thank you,
+ 
+  The Atlassian Support Team</core:set>
+    <core:set var="workflowStep" value="711" />
+    <core:set var="workflowUser" value="atlassiansupport" />
+    <core:set var="filter7Days" value="11509" />
+ 
+    <!-- Run the SearchRequestFilter -->
+    <jira:RunSearchRequest filterid="${filter7Days}" var="issues" />
+ 
+    <!-- Iterate over the issues -->
+    <core:forEach var="issue" items="${issues}">
+        <log:warn>Closing inactive issue ${issue.key}</log:warn>
+        <jira:TransitionWorkflow key="${issue.key}" user="${workflowUser}" workflowAction="${workflowStep}" comment="${comment}" resolution="Customer Timeout"/>
+    </core:forEach>
+</jira:Login>
+</JiraJelly>

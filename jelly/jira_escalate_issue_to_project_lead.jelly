@@ -1,0 +1,73 @@
+<JiraJelly xmlns:jira="jelly:com.atlassian.jira.jelly.JiraTagLib"  xmlns:core="jelly:core">
+<core:set var="issuesFilter" value="11710"/>
+<core:set var="days" value="3"/>
+<core:set var="roleid" value="10010"/>
+<core:set var="message" value="There is no comment from assignee or project lead for ${days}. Escalation to PL"/>
+<jira:Login username="jira.bot" password="XXXXX">
+    <!-- ******** -->
+    <!-- Managers -->
+    <!-- ******** -->
+ 
+    <!-- The ComponentManager will be used to access all other managers. com.atlassian.jira.ComponentManager -->
+    <core:invokeStatic className="com.atlassian.jira.ComponentManager" method="getInstance" var="componentManager"/>
+    <!-- The IssueManager is required to resolve issues returned by search-requests to "normal" JIRA issue objects -->
+    <core:invoke on="${componentManager}" method="getIssueManager" var="issueManager"/>
+    <!-- The CommentManager will return comments of an issue; com.atlassian.jira.issue.comments.CommentManager -->
+    <core:invoke on="${componentManager}" method="getCommentManager" var="commentManager"/>
+    <!-- The ProjectManager will return project variable; com.atlassian.jira.project  -->
+    <core:invoke on="${componentManager}" method="getProjectManager" var="ProjectManager"/>
+ 
+ 
+    <!-- ************* -->
+    <!-- Search Issues -->
+    <!-- ************* -->
+ 
+    <jira:RunSearchRequest filterid="${issuesFilter}" var="issues" size-var="issueCount" />
+ 
+    <!-- ************************************** -->
+    <!-- Match Issues and possibly comment them -->
+    <!-- ************************************** -->
+ 
+    <core:forEach var="issue" items="${issues}">
+        <!-- First resolve the sourceIssue to a _real_ JIRA Issue object -->
+        <core:invoke on="${issueManager}" method="getIssueObject" var="jiraIssue">
+            <core:arg type="java.lang.String" value="${issue.key}"/>
+        </core:invoke>
+        <core:invoke on="${commentManager}" method="getComments" var="comments">
+            <core:arg type="com.atlassian.jira.issue.Issue" value="${jiraIssue}"/>
+        </core:invoke>
+        <core:invoke on="${ProjectManager}" method="getProjectObj" var="project">
+            <core:arg type="java.lang.Long" value="${issue.project}"/>
+        </core:invoke>
+        <core:new var="ReporterInWfStaff" className="java.lang.Boolean">
+            <core:arg type="java.lang.String" value="false"/>
+        </core:new>
+        <jira:GetProjectRoleActors projectkey="${project.getKey()}" projectroleid="${roleid}" var="roleactors" >
+                <core:forEach var="actor" items="${roleactors.users}">
+                        <core:if test="${actor==issue.reporter}">
+                    <core:set var="ReporterInWfStaff" value="true"/>
+                    <core:break/>
+                </core:if>
+                </core:forEach>
+            </jira:GetProjectRoleActors>
+        <core:if test="${issue.assignee!=project.lead &amp;&amp; !ReporterInWfStaff}">
+            <!-- Calc last comment date -->
+            <core:new var="comment_maxdate" className="java.util.Date"/>
+            <core:new var="current_date" className="java.util.Date"/>
+            <core:set var="comment_maxdate" value="${issue.created}"/>
+            <core:forEach var="comment" items="${comments}">
+                <core:if test="${comment_maxdate &lt; comment.Updated &amp;&amp; (comment.author==issue.assignee || comment.author==project.lead.getName())}">
+                    <core:set var="comment_maxdate" value="${comment.Updated}"/>
+                </core:if>
+            </core:forEach>
+            <core:set var="day_offset" value ="${current_date.getDate()-comment_maxdate.getDate()}"/>
+            <core:set var="month_offset" value ="${current_date.getMonth()-comment_maxdate.getMonth()}"/>
+            <core:set var="year_offset" value ="${current_date.getYear()-comment_maxdate.getYear()}"/>
+            <core:if test="${(year_offset &gt; 0 || month_offset &gt; 0 || day_offset &gt; days )}">
+                <jira:AddComment comment="${message}" issue-key="${issue.key}"/>
+                <jira:AssignIssue key="${issue.key}" assignee="${project.lead.getName()}"/>
+            </core:if>
+        </core:if>
+    </core:forEach>
+</jira:Login>
+</JiraJelly>

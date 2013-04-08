@@ -1,0 +1,10 @@
+https://confluence.atlassian.com/display/JIRA/Jelly+Escalation
+
+https://developer.atlassian.com/display/JIRADEV/Jelly%20Examples
+
+
+https://ecosystem.atlassian.net/wiki/display/JTOOL/JIRA+Toolkit+Plugin
+
+
+https://ecosystem.atlassian.net/wiki/display/JTOOL/Auto+Transition+Listener  <--- READ IT, it should work !
+, JIRA Suite Utilities and Misc Workflow extentions
