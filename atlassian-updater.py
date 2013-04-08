@@ -59,6 +59,7 @@ products = {
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'',
     'size':1000,
+    'min_version': '4.0'
     },
   'jira': { 
     'path':'/opt/jira', 
@@ -68,13 +69,15 @@ products = {
     'version_regex': '^JIRA ([\d\.]+)-.*',
     'log': '/opt/jira/logs/catalina.out',
     'size': 1300+300,
+    'min_version':'4.0',
     },
   'crowd': {
     'path':'/opt/crowd',
     'keep': ['build.properties'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
-    'size':500+300 # mininum amount of space needed for downloadin and insalling the updgrade
+    'size':500+300, # mininum amount of space needed for downloadin and insalling the updgrade
+    'min_version':'2.0'
     },
 }
 
@@ -131,7 +134,11 @@ for product in products:
       logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
       continue
     
-    logging.debug("Local version of %s is %s and we found version %s at %s" % (current_version, product, version, url))
+    if StrictVersion(current_version) < StrictVersion(products[product]['min_version']):
+      logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
+      continue
+    
+    logging.debug("Local version of %s is %s and we found version %s at %s" % (product, current_version, version, url))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
