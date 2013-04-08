@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+hg pull -u -q /opt/phoebian
+python /opt/phoebian/atlassian-updater.py -q
+
