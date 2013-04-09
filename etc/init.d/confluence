@@ -1,0 +1,136 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides:		confluence
+# Required-Start:	$remote_fs $network
+# Required-Stop:	$remote_fs $network
+# Default-Start:	3 4 5
+# Default-Stop:		1 2
+# Short-Description:	Confluence
+### END INIT INFO
+
+# https://confluence.atlassian.com/display/DOC/Garbage+Collector+Performance+Issues#GarbageCollectorPerformanceIssues-Ifusing64bitJREforlargerheaps,useCompressedOops
+#   GC_LOG=gc-$(date +%s).log
+    # 
+    # [bartosz on 2011-10-11] 
+    #   - Create symlink gc-current.log pointing to new gc log file. 
+    # 
+#    rm -f "/var/local/confluence/logs/gc-current.log"
+#    ln -s "/var/local/confluence/logs/$GC_LOG" "/var/local/confluence/logs/gc-current.log"
+
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
+#    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
+export JAVA_OPTS="-Xms512m -Xmx3500m -XX:MaxPermSize=256m -XX:+UseParallelOldGC -XX:+DisableExplicitGC $JAVA_OPTS "
+# unknown +UseCompressedOops
+
+TIMEOUT=30
+STAMP=`date -u +"%Y%m%d-%H%M%S"`
+INSTALL_DIR=/var/local/confluence
+CATALINA_PID="/var/run/confluence.pid"
+export CATALINA_PID
+# number of seconds to wait before forcing a stop command
+
+# set -e
+
+# detect java location
+if [ -n "$JAVA_HOME" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    do
+        if [ -d "$JAVA_HOME" ]; then break ; fi
+    done
+fi
+export JAVA_HOME
+
+# detect confluence location 
+# list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
+for ROOT_DIR in /opt/Confluence /opt/confluence
+do
+    if [ -d "$ROOT_DIR" ]; then break ; fi
+done
+
+test -x "${ROOT_DIR}/bin/startup.sh" || exit 0
+test -x "${ROOT_DIR}/bin/shutdown.sh" || exit 0
+
+if test -f /etc/default/confluence; then
+    . /etc/default/confluence
+fi
+
+. /lib/lsb/init-functions
+
+function wait_to_end() {
+            PID=`ps -o pid,command -C java|grep "$ROOT_DIR/bin"|awk '{print $1}'`
+            t=$TIMEOUT
+            while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
+                echo -n "."
+                sleep 1
+                PID=`ps -o pid,command -C java|grep "$ROOT_DIR/bin"|awk '{print $1}'`
+                t=$(( t - 1 ))
+            done
+            PID=`ps -o pid,command -C java|grep $ROOT_DIR/bin|awk '{print $1}'`
+}
+
+moveallto() {
+    local DESTDIR=${1}
+    mkdir -p ${DESTDIR}
+    #find -type d -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mkdir -p "${DESTDIR}/{}" \;
+    find -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
+    #find -maxdepth 1 -type d -not -name . -not -name ${DESTDIR} -exec rm -fr {} \;
+}
+
+case "$1" in
+  start)
+	log_daemon_msg "Starting Confluence instance" "confluence"
+        echo
+        # essential, I had a crashed instance due to too many files in temp dir
+        rm -f "${ROOT_DIR}/temp/*"
+        
+        # rotating the logs, so we get an empty set for each restart
+        pushd $(pwd)
+        cd $ROOT_DIR/logs
+        moveallto $STAMP
+        popd
+
+        # rotating the logs, so we get an empty set for each restart
+        pushd $(pwd)
+        cd $INSTALL_DIR/logs
+        moveallto $STAMP
+        popd
+        
+	if "${ROOT_DIR}/bin/startup.sh"; then
+	    log_end_msg 0
+	else
+	    log_end_msg 1
+	fi
+	;;
+  stop)
+	log_daemon_msg "Stopping Confluence instance" "confluence"
+        echo
+	if "${ROOT_DIR}/bin/shutdown.sh"; then
+            wait_to_end
+	    if [ -n "$PID" ]; then
+                    echo "Forcing shutdown..."
+	            if "${ROOT_DIR}/bin/shutdown.sh" -force; then
+                        wait_to_end
+			if [ -n "$PID" ]; then
+				echo "ERROR: still unable to end $PID, doing a kill -9 on it..."
+                                kill -9 $PID
+			fi
+                    fi
+	    fi
+        fi
+	rm -f $INSTALL_DIR/indexe/write.lock
+	wait_to_end
+        log_end_msg 0
+	;;
+  restart)
+	log_daemon_msg "Restarting Confluence instance" "confluence"
+	$0 stop
+        $0 start
+	;;
+  *)
+	log_action_msg "Usage: /etc/init.d/confluence {start|stop|restart}"
+	exit 1
+esac
+
+exit 0
