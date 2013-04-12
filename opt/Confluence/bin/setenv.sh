@@ -1,7 +1,9 @@
-JAVA_OPTS="-Xms256m -Xmx2512m -XX:MaxPermSize=512m $JAVA_OPTS -Djava.awt.headless=true \
--Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8091 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-
+JAVA_OPTS="-Xms256m -Xmx2512m -XX:MaxPermSize=512m $JAVA_OPTS -Djava.awt.headless=true"
 export JAVA_OPTS
+
+# JMX options should stay in CATALINA, NOT in JVM_... parameters beacause they would prevent stop actions from running.
+CATALINA_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8091 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
+export CATALINA_OPTS
 
 echo "If you encounter issues starting up Confluence Standalone, please see the Installation guide at http://confluence.atlassian.com/display/DOC/Confluence+Installation+Guide"
 

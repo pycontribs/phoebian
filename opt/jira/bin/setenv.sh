@@ -10,9 +10,7 @@ JVM_SUPPORT_RECOMMENDED_ARGS="-Djira.jelly.on=true -Dfile.encoding=utf-8 \
 -XX:MaxPermSize=512m -XX:+UseParallelOldGC -XX:+DisableExplicitGC \
 -Djira.autoexport=false -Dplugin.resource.directories=/var/local/jira/contrib/scripts \
 -Dmail.imap.port=993 -Dmail.imap.starttls.enable=true -Dmail.imap.socketFactory.class=javax.net.ssl.SSLSocketFactory \
--Djira.autoexport=false \
--Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8081 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-
+-Djira.autoexport=false"
 
 #
 # The following 2 settings control the minimum and maximum given to the JIRA Java virtual machine.  In larger JIRA instances, the maximum amount will need to be increased.
@@ -41,6 +39,9 @@ JVM_REQUIRED_ARGS="-Djava.awt.headless=true -Datlassian.standalone=JIRA -Dorg.ap
 # with other parts of the application logs.
 #-----------------------------------------------------------------------------------
 JVM_EXTRA_ARGS="-XX:+PrintGCDateStamps"
+
+# JMX options should stay in CATALINA_OPTS, NOT in JVM_... parameters beacause they would prevent stop actions from running.
+CATALINA_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8081 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
 
 PRGDIR=`dirname "$0"`
 cat "${PRGDIR}"/jirabanner.txt
