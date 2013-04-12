@@ -16,7 +16,6 @@
 #    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
 NAME=jira
-source /etc/default/$NAME
 STAMP=`date -u +"%Y%m%d-%H%M%S"`
 #JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
 # this is for the test instance
@@ -37,13 +36,13 @@ function disable_maintenance() {
 echo disabling maintenance mode for web proxy $DOMAIN
 # if start returned success (0) we will wait for the confirmation message in the logs - it may take 2-3 minutes
 # readline -t
-echo zzz $0
-if [ "$0" -eq "0" ]; then
-  tail -F /var/local/jira/log/atlassian-jira.log | while read line; do
-    echo -n "."
-    echo $line | grep -q 'You can now access JIRA through your web browser' && break;
-  done
-fi
+#echo zzz $0
+#if [ "$0" -eq "0" ]; then
+#  tail -F /var/local/jira/log/atlassian-jira.log | while read line; do
+#    echo -n "."
+#    echo $line | grep -q 'You can now access JIRA through your web browser' && break;
+#  done
+#fi
 
 #ssh -t $DOMAIN rm /etc/nginx/www/$DOMAIN-maintenance.html
 }
@@ -68,7 +67,7 @@ export JAVA_HOME
 
 # detect confluence location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/$NAME/bin /opt/Jira/bin
+for ROOT_DIR in /opt/${NAME}/bin /opt/Jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
@@ -82,8 +81,8 @@ test -x "${ROOT_DIR}/shutdown.sh" || exit 0
 echo "" > ${ROOT_DIR}/jirabanner.txt
 
 
-if test -f /etc/default/$NAME; then
-    . /etc/default/$NAME
+if test -f /etc/default/${NAME}; then
+    . /etc/default/${NAME}
 fi
 
 . /lib/lsb/init-functions
@@ -105,16 +104,17 @@ case "$1" in
 	log_daemon_msg "Starting $NAME instance" "$NAME"
 
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd)
+        pushd $(pwd) >/dev/null
         cd $ROOT_DIR/../logs
         moveallto $STAMP
-        popd
+        popd >/dev/null
 
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd)
+        pushd $(pwd) >/dev/null
         cd $JIRA_HOME/log
         moveallto $STAMP
-        popd
+        popd >/dev/null
+
 
 	if "${ROOT_DIR}/startup.sh"; then
 	    log_end_msg 0
