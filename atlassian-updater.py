@@ -73,11 +73,12 @@ products = {
     },
   'crowd': {
     'path':'/opt/crowd',
-    'keep': ['build.properties','apache-tomcat/bin/setenv.sh'],
+    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and insalling the updgrade
-    'min_version':'2.0'
+    'min_version':'2.0',
+    'log': '/opt/crowd/apache-tomcat/logs/catalina.out',
     },
 }
 
