@@ -62,7 +62,15 @@ products = {
     },
   'jira': { 
     'path':'/opt/jira', 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties'],
+    'keep': ['conf/server.xml',
+    	'conf/web.xml',
+    	'conf/context.xml',
+    	'conf/catalina.properties',
+    	'conf/logging.properties',
+    	'bin/setenv.sh',
+    	'atlassian-jira/WEB-INF/classes/jira-application.properties',
+    	'atlassian-jira/WEB-INF/cgi', # this can be a symlink or not existing at all
+    	],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,-.*,,'",
     'version_regex': '^JIRA ([\d\.]+)-.*',
@@ -141,7 +149,11 @@ for product in products:
         logging.error("Freespace on / %s MB but we need at least %s MB free. Fix the problem and try again." % (freespace,products[product]['size']))
         sys.exit(2)
         
-    run('cd /tmp && wget --timestmap --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -u -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % url)
+    if os.isatty(sys.stdout.fileno()):
+        run('cd /tmp && wget --timestamp --continue --progress=dot %s 2>&1' % url)
+    else:
+        run('cd /tmp && wget --timestamp --continue %s 2>&1' % url)
+
     run('cd /tmp && tar -xzf %s' % archive)
     
     old_dir = "%s-%s-old" % (products[product]['path'],current_version)
@@ -159,7 +171,8 @@ for product in products:
     run('mv /tmp/%s %s' % (dirname,products[product]['path']))
     
     for f in products[product]['keep']:
-       run('cp -af %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
+        if os.path.exits(os.path.join(old_dir,f)):
+            run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
     run('service %s start' % product)
 
