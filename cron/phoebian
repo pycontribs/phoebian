@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 hg -q pull -R /opt/phoebian
 hg -q update -R /opt/phoebian
-python /opt/phoebian/atlassian-updater.py -q --eap -y
+python /opt/phoebian/atlassian-updater.py -q --eap
