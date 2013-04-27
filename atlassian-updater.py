@@ -26,7 +26,7 @@ import platform
 import re
 import sys
 import logging
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 from optparse import OptionParser
 
 def get_free_space_mb(folder):
@@ -52,25 +52,25 @@ def run(cmd, fatal=True):
   return 0
 
 products = {
-  'confluence': { 
-    'path':'/opt/Confluence', 
-    'keep': ['conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties'], 
+  'jira': { 
+    'path':'/opt/jira', 
+    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties'],
+    'filter_description':'TAR.GZ',
+    'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
+    'version_regex': '^JIRA ([\d\.-]+)#.*',
+    'log': '/opt/jira/logs/catalina.out',
+    'size': 1300+300,
+    'min_version':'4.0',
+    },
+ 'confluence': {
+    'path':'/opt/Confluence',
+    'keep': ['conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'',
     'size':1000,
     'min_version': '4.0'
-    },
-  'jira': { 
-    'path':'/opt/jira', 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties'],
-    'filter_description':'TAR.GZ',
-    'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,-.*,,'",
-    'version_regex': '^JIRA ([\d\.]+)-.*',
-    'log': '/opt/jira/logs/catalina.out',
-    'size': 1300+300,
-    'min_version':'4.0',
-    },
+    }, 
   'crowd': {
     'path':'/opt/crowd',
     'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties'],
@@ -94,6 +94,8 @@ def get_cmd_output(cmd):
 parser = OptionParser()
 parser.add_option("-y", dest="force", default=False, action="store_true",
                   help="Force updater to do the peform the upgrade.")
+parser.add_option("--eap", dest="feed", default='current', action="store_const", const="eap",
+                  help="Use EAP (beta) feeds instead of releases.")
 parser.add_option("-q", dest="quiet", default=False, action="store_true",help="no output if nothing is wrong, good for cron usage.")
 (options, args) = parser.parse_args()
 
@@ -104,6 +106,9 @@ logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     datefmt='%Y-%m-%d %H:%M',
                     )
+
+def enable_logging():
+    logging.getLogger().setLevel(logging.DEBUG)
 
 product = None
 for product in products:
@@ -119,7 +124,7 @@ for product in products:
         logging.error('Unable to detect the current version of %s' % product)
         sys.exit(1)
     
-    url = "https://my.atlassian.com/download/feeds/current/%s.json" % product
+    url = "https://my.atlassian.com/download/feeds/%s/%s.json" % (options.feed,product)
     fp = codecs.getreader("latin-1")(urllib2.urlopen(url))
     s = fp.read()[10:-1]  # "downloads(...)" is not valid json !!! who was the programmer that coded this?
     data = json.loads(s)
@@ -130,11 +135,13 @@ for product in products:
         version = d['version']
         break
     
-    if StrictVersion(version) <= StrictVersion(current_version):
+    if LooseVersion(version) <= LooseVersion(current_version):
       logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
       continue
+    else:
+      enable_logging()
     
-    if StrictVersion(current_version) < StrictVersion(products[product]['min_version']):
+    if LooseVersion(current_version) < LooseVersion(products[product]['min_version']):
       logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
       continue
     
