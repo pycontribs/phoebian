@@ -1,12 +1,12 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:		jira
-# Required-Start:	$remote_fs $network $ssh
-# Required-Stop:	$remote_fs $network $ssh
-# Default-Start:	3 4 5
-# Default-Stop:		1 2
-# Short-Description:	Jira
+# Provides:        jira
+# Required-Start:    $remote_fs $network $ssh
+# Required-Stop:    $remote_fs $network $ssh
+# Default-Start:    3 4 5
+# Default-Stop:        1 2
+# Short-Description:    Jira
 ### END INIT INFO
 
 #    rm -f "/var/local/confluence/logs/gc-current.log"
@@ -16,10 +16,12 @@
 #    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
 NAME=jira
+DOMAIN=jira.uk.xensource.com
 STAMP=`date -u +"%Y%m%d-%H%M%S"`
 #JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
-# this is for the test instance
-export JAVA_OPTS="-Datlassian.mail.fetchdisabled=true -Datlassian.mail.senddisabled=true "
+# NOTE: Do not rely on any previously configured JAVA_OPTS.
+export JAVA_OPTS=""
+start_time=`date +%s`
 
 function moveallto() {
     local DESTDIR=${1}
@@ -27,32 +29,10 @@ function moveallto() {
     find -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
 }
 
-function enable_maintenance() {
-echo enabling maintenance mode for web proxy $DOMAIN
-#ssh -t $DOMAIN ln -s /etc/nginx/www/maintenance.html /etc/nginx/www/$DOMAIN-maintenance.html
-}
 
-function disable_maintenance() {
-echo disabling maintenance mode for web proxy $DOMAIN
-# if start returned success (0) we will wait for the confirmation message in the logs - it may take 2-3 minutes
-# readline -t
-#echo zzz $0
-#if [ "$0" -eq "0" ]; then
-#  tail -F /var/local/jira/log/atlassian-jira.log | while read line; do
-#    echo -n "."
-#    echo $line | grep -q 'You can now access JIRA through your web browser' && break;
-#  done
-#fi
 
-#ssh -t $DOMAIN rm /etc/nginx/www/$DOMAIN-maintenance.html
-}
-         
-          
-# unknown +UseCompressedOops
-
-TIMEOUT=60
+TIMEOUT=30
 # number of seconds to wait before forcing a stop command
-
 
 # set -e
 
@@ -65,27 +45,55 @@ if [ -n "$JAVA_HOME" ]; then
 fi
 export JAVA_HOME
 
-# detect confluence location 
+# detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/${NAME}/bin /opt/Jira/bin
+for ROOT_DIR in /opt/$NAME/bin /opt/Jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 
 JIRA_HOME=/var/local/jira
 
-test -x "${ROOT_DIR}/startup.sh" || exit 0
-test -x "${ROOT_DIR}/shutdown.sh" || exit 0
+test -x "${ROOT_DIR}/startup.sh" || exit 1
+test -x "${ROOT_DIR}/shutdown.sh" || exit 1
 
 # empty jira ugly banner
 echo "" > ${ROOT_DIR}/jirabanner.txt
 
 
-if test -f /etc/default/${NAME}; then
-    . /etc/default/${NAME}
+if test -f /etc/default/$NAME; then
+    . /etc/default/$NAME
 fi
 
 . /lib/lsb/init-functions
+
+function exit_if_maintenance() {
+  if [ -f "${ROOT_DIR}/../.maintenance" ]; then
+    log_progress_msg "Doing nothing as the systems seems to be in maintenance mode."
+    log_end_msg 1
+    exit 1
+  fi
+  exit 0
+}
+
+function enable_maintenance() {
+  touch "${ROOT_DIR}/../.maintenance"
+  log_progress_msg "enabling maintenance mode for web proxy $DOMAIN"
+  #ssh -t $DOMAIN -o "BatchMode yes" ln -s /etc/nginx/www/maintenance.html /etc/nginx/www/$DOMAIN-maintenance.html
+}
+
+function disable_maintenance() {
+  rm -f "${ROOT_DIR}/../.maintenance"
+  log_progress_msg "disabling maintenance mode for web proxy $DOMAIN"
+  return 0
+  tail -F /var/local/jira/log/atlassian-jira.log | while read line; do
+    echo -n "."
+    echo $line | grep -q 'INFO: Server startup in' && break;
+  done
+  echo
+  sleep 2
+  #ssh -t $DOMAIN -o "BatchMode yes" rm /etc/nginx/www/$DOMAIN-maintenance.html
+}
 
 function wait_to_end() {
             PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
@@ -101,58 +109,69 @@ function wait_to_end() {
 
 case "$1" in
   start)
-	log_daemon_msg "Starting $NAME instance" "$NAME"
-
+    log_daemon_msg "Starting $NAME instance" "$NAME"
+        
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >/dev/null
+        pushd $(pwd) >> /dev/null
         cd $ROOT_DIR/../logs
         moveallto $STAMP
-        popd >/dev/null
+        popd >> /dev/null
+
+        # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
+        rm -rf $ROOT_DIR/../work/*
 
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >/dev/null
+        pushd $(pwd) >> /dev/null
         cd $JIRA_HOME/log
         moveallto $STAMP
-        popd >/dev/null
+        popd >> /dev/null
 
-
-	if "${ROOT_DIR}/startup.sh"; then
-	    log_end_msg 0
-	    disable_maintenance 0
-	else
-	    log_end_msg 1
-	    disable_maintenance 1
-	fi
-	;;
+    if "${ROOT_DIR}/startup.sh"; then
+        log_end_msg 0
+    else
+        log_end_msg 1
+    fi
+    disable_maintenance 
+    ;;
   stop)
-	log_daemon_msg "Stopping $NAME instance" "$NAME"
+    log_daemon_msg "Stopping $NAME instance" "$NAME"
         echo
         enable_maintenance
-	if "${ROOT_DIR}/shutdown.sh"; then
+    if "${ROOT_DIR}/shutdown.sh"; then
             wait_to_end
-	    if [ -n "$PID" ]; then
+        if [ -n "$PID" ]; then
                     echo "Forcing shutdown..."
-	            if "${ROOT_DIR}/shutdown.sh" -force; then
+                if "${ROOT_DIR}/shutdown.sh" -force; then
                         wait_to_end
-			if [ -n "$PID" ]; then
-				echo "ERROR: still unable to end $PID, doing a kill -9 on it..."
+            if [ -n "$PID" ]; then
+                log_progress_msg "ERROR: still unable to end $PID, doing a kill -9 on it..."
                                 kill -9 $PID
-			fi
+            fi
                     fi
-	    fi
         fi
-	wait_to_end
-        log_end_msg 0
-	;;
+        fi
+    wait_to_end
+    log_end_msg 0
+    ;;
   restart)
-	log_daemon_msg "Restarting $NAME instance" "$NAME"
-	$0 stop
+    log_daemon_msg "Restarting $NAME instance" "$NAME"
+
+    # if someone stopped jira on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
+    # This allows us to restart jira using nagios when it stops responding, as long it wasn't stopped on purpose.
+    if exit_if_maintenance; then
+        exit 1
+    else
+        $0 stop
         $0 start
-	;;
+        echo "run time is $(expr `date +%s` - $start_time) s ... stil it could take few minutes until the service is fully up."
+    fi
+    ;;
   *)
-	log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart}"
-        disable_maintenance 1
-	exit 1
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart}"
+        disable_maintenance
+    log_end_msg 1
+    exit 1
+    ;;
 esac
 
 exit 0
