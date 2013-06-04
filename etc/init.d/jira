@@ -9,9 +9,6 @@
 # Short-Description:    Jira
 ### END INIT INFO
 
-#    rm -f "/var/local/confluence/logs/gc-current.log"
-#    ln -s "/var/local/confluence/logs/$GC_LOG" "/var/local/confluence/logs/gc-current.log"
-
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
 #    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
@@ -116,10 +113,11 @@ function disable_maintenance() {
     rm -f "${ROOT_DIR}/../.maintenance"
     log_progress_msg " (disable maintenance mode for $URL) "
 
-    if tty -s; then
+    #if tty -s; then
         # do_interactive_stuff
-        ( tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null & ( (tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null | grep -l 'You can now access JIRA through your web browser' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
-    fi
+        #
+        #( tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null & ( (tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null | grep -l 'You can now access JIRA through your web browser' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
+    #fi
 
     #sleep 2
     ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "rm -f /etc/nginx/www/$PROXYNAME-maintenance.html "
