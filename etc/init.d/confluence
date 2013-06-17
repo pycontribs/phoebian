@@ -81,6 +81,7 @@ if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi
 
+
 clean_exit() {
   zero=0
   if [ $1 -ne $zero ]; then
@@ -196,12 +197,14 @@ case "$1" in
 
     # if someone stopped jira on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
     # This allows us to restart jira using nagios when it stops responding, as long it wasn't stopped on purpose.
-    if exit_if_maintenance; then
-        clean_exit 1
-    else
+    exit_if_maintenance
+    if [ $? == 0 ] ; then
         daemon_stop
         daemon_start
         echo "run time is $(expr `date +%s` - $start_time)s ... stil it could take few minutes until the service is fully up."
+    else
+        echo "maintenance detected canceling..."
+        clean_exit 1
     fi
     ;;
   *)
