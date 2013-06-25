@@ -6,7 +6,7 @@
 # Required-Stop:    $remote_fs $network $ssh
 # Default-Start:    3 4 5
 # Default-Stop:        1 2
-# Short-Description:    Jira
+# Short-Description:    Confluence
 ### END INIT INFO
 
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
@@ -39,13 +39,18 @@ OUTPUT=$(mktemp)
 # set -e
 
 # detect java location
-if [ -n "$JAVA_HOME" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+if [ "$JAVA_HOME" = "" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/ /opt/Confluence/jre
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
 fi
 export JAVA_HOME
+
+if [ "${JAVA_HOME}" = "" ] ; then
+  echo "Failed to detect JAVA_HOME location, we cannot proceed."
+  exit 1
+fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
@@ -54,13 +59,10 @@ do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 
-JIRA_HOME=/var/local/jira
+CONFLUENCE_HOME=/var/local/confluence
 
 test -x "${ROOT_DIR}/startup.sh" || exit 1
 test -x "${ROOT_DIR}/shutdown.sh" || exit 1
-
-# empty jira ugly banner
-echo "" > ${ROOT_DIR}/jirabanner.txt
 
 # read the address where the service is supposed to respond
 PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
@@ -105,7 +107,7 @@ function enable_maintenance() {
   touch "${ROOT_DIR}/../.maintenance"
   if [ "$PROXYNAME" != "localhost" ] ; then
     log_progress_msg " (enable maintenance mode for $URL) "
-    ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "ln -s -f /etc/nginx/www/maintenance.html /etc/nginx/www/$PROXYNAME-maintenance.html || hostname"
+    ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "ln -s -f /etc/nginx/www/maintenance.html /etc/nginx/www/$PROXYNAME-maintenance.html || hostname" || echo "maint-failed"
   fi
 }
 
@@ -118,13 +120,34 @@ function disable_maintenance() {
     fi
     if tty -s; then
         # do_interactive_stuff
-        ( tail -q -F /var/local/jira/log/atlassian-jira.log -F "$ROOT_DIR/../logs/catalina.out" 2>/dev/null & ( (tail -q -F /var/local/jira/log/atlassian-jira.log -F "$ROOT_DIR/../logs/catalina.out" 2>/dev/null | grep -l 'INFO: Server startup in' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
+        ( tail -q -F /var/local/confluence/logs/atlassian-confluence.log -F "$ROOT_DIR/../logs/catalina.out" 2>/dev/null & ( (tail -q -F /var/local/confluence/logs/atlassian-confluence.log -F "$ROOT_DIR/../logs/catalina.out" 2>/dev/null | grep -l 'INFO: Server startup in' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
     fi
     if [ "$PROXYNAME" != "localhost" ] ; then
       ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "rm -f /etc/nginx/www/$PROXYNAME-maintenance.html "
     fi
   fi
 
+}
+
+function thread_dump() {
+  PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+  count=5
+  delay=0.5
+  echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
+
+  while [ $count -gt 0 ]
+  do
+    #jstack -l $pid >jstack.$pid.$(date +%H%M%S.%N)
+    
+    DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).txt"
+    echo "---" >> ${DUMP}
+    jstack -l $PID >> ${DUMP}
+    sleep $delay
+    let count--
+    echo -n "."
+  done
+
+  
 }
 
 function wait_to_end() {
@@ -153,7 +176,7 @@ function daemon_start() {
 
         # rotating the logs, so we get an empty set for each restart
         pushd $(pwd) >> /dev/null
-        cd $JIRA_HOME/log
+        cd $CONFLUENCE_HOME/logs
         moveallto $STAMP
         popd >> /dev/null
 
@@ -169,9 +192,11 @@ function daemon_stop() {
     wait_to_end
         if [ -n "$PID" ]; then
             log_progress_msg " forcing "
+            thread_dump
             "${ROOT_DIR}/shutdown.sh" -force >>${OUTPUT} 2>&1 || true
             wait_to_end
             if [ -n "$PID" ]; then
+                    thread_dump
                     log_progress_msg " killing $PID "
                     kill -9 $PID
                     wait_to_end
@@ -192,11 +217,15 @@ case "$1" in
     daemon_stop
     log_end_msg 0
     ;;
+  dump)
+    log_daemon_msg "Thread dumping $NAME instance" "$NAME"
+    thread_dump $PID
+    ;;
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
-    # if someone stopped jira on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
-    # This allows us to restart jira using nagios when it stops responding, as long it wasn't stopped on purpose.
+    # if someone stopped service on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
+    # This allows us to restart service using nagios when it stops responding, as long it wasn't stopped on purpose.
     exit_if_maintenance
     if [ $? == 0 ] ; then
         daemon_stop
@@ -208,7 +237,7 @@ case "$1" in
     fi
     ;;
   *)
-    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart|status}" || true
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart|status|dump}" || true
     clean_exit 1
     ;;
 esac
