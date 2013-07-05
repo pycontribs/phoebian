@@ -26,7 +26,7 @@ import platform
 import re
 import sys
 import logging
-#from distutils.version import LooseVersion
+from distutils.version import LooseVersion
 from optparse import OptionParser
 
 # http://www.python.org/dev/peps/pep-0386/
@@ -405,6 +405,117 @@ class NormalizedVersion(object):
     def __ge__(self, other):
         return self.__eq__(other) or self.__gt__(other)
 
+def suggest_normalized_version(s):
+    """Suggest a normalized version close to the given version string.
+ 
+    If you have a version string that isn't rational (i.e. NormalizedVersion
+    doesn't like it) then you might be able to get an equivalent (or close)
+    rational version from this function.
+ 
+    This does a number of simple normalizations to the given string, based
+    on observation of versions currently in use on PyPI. Given a dump of
+    those version during PyCon 2009, 4287 of them:
+    - 2312 (53.93%) match NormalizedVersion without change
+      with the automatic suggestion
+    - 3474 (81.04%) match when using this suggestion method
+ 
+    @param s {str} An irrational version string.
+    @returns A rational version string, or None, if couldn't determine one.
+    """
+    try:
+        NormalizedVersion(s)
+        return s   # already rational
+    except IrrationalVersionError:
+        pass
+ 
+    rs = s.lower()
+ 
+    # part of this could use maketrans
+    for orig, repl in (('-alpha', 'a'), ('-beta', 'b'), ('alpha', 'a'),
+                       ('beta', 'b'), ('rc', 'c'), ('-final', ''),
+                       ('-pre', 'c'),
+                       ('-release', ''), ('.release', ''), ('-stable', ''),
+                       ('+', '.'), ('_', '.'), (' ', ''), ('.final', ''),
+                       ('final', '')):
+        rs = rs.replace(orig, repl)
+ 
+    # if something ends with dev or pre, we add a 0
+    rs = re.sub(r"pre$", r"pre0", rs)
+    rs = re.sub(r"dev$", r"dev0", rs)
+ 
+    # if we have something like "b-2" or "a.2" at the end of the
+    # version, that is pobably beta, alpha, etc
+    # let's remove the dash or dot
+    rs = re.sub(r"([abc]|rc)[\-\.](\d+)$", r"\1\2", rs)
+ 
+    # 1.0-dev-r371 -> 1.0.dev371
+    # 0.1-dev-r79 -> 0.1.dev79
+    rs = re.sub(r"[\-\.](dev)[\-\.]?r?(\d+)$", r".\1\2", rs)
+ 
+    # Clean: 2.0.a.3, 2.0.b1, 0.9.0~c1
+    rs = re.sub(r"[.~]?([abc])\.?", r"\1", rs)
+ 
+    # Clean: v0.3, v1.0
+    if rs.startswith('v'):
+        rs = rs[1:]
+ 
+    # Clean leading '0's on numbers.
+    #TODO: unintended side-effect on, e.g., "2003.05.09"
+    # PyPI stats: 77 (~2%) better
+    rs = re.sub(r"\b0+(\d+)(?!\d)", r"\1", rs)
+ 
+    # Clean a/b/c with no version. E.g. "1.0a" -> "1.0a0". Setuptools infers
+    # zero.
+    # PyPI stats: 245 (7.56%) better
+    rs = re.sub(r"(\d+[abc])$", r"\g<1>0", rs)
+ 
+    # the 'dev-rNNN' tag is a dev tag
+    rs = re.sub(r"\.?(dev-r|dev\.r)\.?(\d+)$", r".dev\2", rs)
+ 
+    # clean the - when used as a pre delimiter
+    rs = re.sub(r"-(a|b|c)(\d+)$", r"\1\2", rs)
+ 
+    # a terminal "dev" or "devel" can be changed into ".dev0"
+    rs = re.sub(r"[\.\-](dev|devel)$", r".dev0", rs)
+ 
+    # a terminal "dev" can be changed into ".dev0"
+    rs = re.sub(r"(?![\.\-])dev$", r".dev0", rs)
+ 
+    # a terminal "final" or "stable" can be removed
+    rs = re.sub(r"(final|stable)$", "", rs)
+ 
+    # The 'r' and the '-' tags are post release tags
+    #   0.4a1.r10       ->  0.4a1.post10
+    #   0.9.33-17222    ->  0.9.3.post17222
+    #   0.9.33-r17222   ->  0.9.3.post17222
+    rs = re.sub(r"\.?(r|-|-r)\.?(\d+)$", r".post\2", rs)
+ 
+    # Clean 'r' instead of 'dev' usage:
+    #   0.9.33+r17222   ->  0.9.3.dev17222
+    #   1.0dev123       ->  1.0.dev123
+    #   1.0.git123      ->  1.0.dev123
+    #   1.0.bzr123      ->  1.0.dev123
+    #   0.1a0dev.123    ->  0.1a0.dev123
+    # PyPI stats:  ~150 (~4%) better
+    rs = re.sub(r"\.?(dev|git|bzr)\.?(\d+)$", r".dev\2", rs)
+ 
+    # Clean '.pre' (normalized from '-pre' above) instead of 'c' usage:
+    #   0.2.pre1        ->  0.2c1
+    #   0.2-c1         ->  0.2c1
+    #   1.0preview123   ->  1.0c123
+    # PyPI stats: ~21 (0.62%) better
+    rs = re.sub(r"\.?(pre|preview|-c)(\d+)$", r"c\g<2>", rs)
+ 
+    # Tcl/Tk uses "px" for their post release markers
+    rs = re.sub(r"p(\d+)$", r".post\1", rs)
+ 
+    try:
+        NormalizedVersion(rs)
+        return rs   # already rational
+    except IrrationalVersionError:
+        pass
+    return None
+
 #--- end of import 
 
 #print NormalizedVersion('1.0')
@@ -451,6 +562,17 @@ products = {
     'min_version':'2.0',
     'log': '/opt/crowd/apache-tomcat/logs/catalina.out',
     },
+  'bamboo': {
+    'path':'/opt/atlassian-bamboo',
+    'keep': ['webapp/WEB-INF/classes/bamboo-init.properties'],
+    'filter_description':'TAR.GZ',
+
+    'version': "cat webapp/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-server/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
+    'size':200+300, # mininum amount of space needed for downloadin and insalling the updgrade
+    'min_version':'4.4.5',
+    'log': '/opt/atlassian-bamboo/logs/bamboo.log',
+    },
+
 }
 
 
@@ -500,6 +622,11 @@ for product in products:
     cwd = os.getcwd()
     os.chdir(products[product]['path'])
     current_version = get_cmd_output(products[product]['version']).rstrip('-')
+    try:
+        current_version = NormalizedVersion(current_version)
+    except:
+        current_version = NormalizedVersion(suggest_normalized_version(current_version))
+
     os.chdir(cwd)
     if not current_version:
         logging.error('Unable to detect the current version of %s' % product)
@@ -513,18 +640,21 @@ for product in products:
     for d in data:
       if 'Unix' in d['platform'] and 'Cluster' not in d['description'] and products[product]['filter_description'] in d['description']:
         url = d['zipUrl']
-        version = d['version']
+        try:
+            version = NormalizedVersion(d['version'])
+        except:
+            version = NormalizedVersion(suggest_normalized_version(d['version']))
         break
     
-    if NormalizedVersion(version) <= NormalizedVersion(current_version):
+    if version <= current_version:
       logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
       continue
     else:
       enable_logging()
     
-    if LooseVersion(current_version) < LooseVersion(products[product]['min_version']):
-      logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
-      continue
+    #if current_version < LooseVersion(products[product]['min_version']):
+    #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
+    #  continue
     
     logging.debug("Local version of %s is %s and we found version %s at %s" % (product, current_version, version, url))
     archive = url.split('/')[-1]
