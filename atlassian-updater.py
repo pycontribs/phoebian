@@ -564,7 +564,7 @@ products = {
     },
   'bamboo': {
     'path':'/opt/atlassian-bamboo',
-    'keep': ['webapp/WEB-INF/classes/bamboo-init.properties'],
+    'keep': ['webapp/WEB-INF/classes/bamboo-init.properties','conf/wrapper.conf'],
     'filter_description':'TAR.GZ',
 
     'version': "cat webapp/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-server/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
