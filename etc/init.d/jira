@@ -17,7 +17,13 @@ STAMP=`date -u +"%Y%m%d-%H%M%S"`
 
 set -e
 
-. /lib/lsb/init-functions
+if [ -f "/lib/lsb/init-functions" ]; then
+    . /lib/lsb/init-functions
+else # this is for OS X where we do not have them, copy the jira to ~/bin
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    . ${DIR}/lib/lsb/init-functions
+fi
+
 
 #JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
 # NOTE: Do not rely on any previously configured JAVA_OPTS.
@@ -27,7 +33,7 @@ start_time=`date +%s`
 function moveallto() {
     local DESTDIR=${1}
     mkdir -p ${DESTDIR}
-    find -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
+    find . -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
 }
 
 
@@ -104,7 +110,7 @@ function enable_maintenance() {
   touch "${ROOT_DIR}/../.maintenance"
   log_progress_msg " (enable maintenance mode for $URL) "
 
-  ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "ln -s -f /etc/nginx/www/maintenance.html /etc/nginx/www/$PROXYNAME-maintenance.html || hostname"
+  ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "ln -s -f /etc/nginx/www/maintenance.html /etc/nginx/www/$PROXYNAME-maintenance.html || hostname" || echo "(failed)"
 
 }
 
@@ -120,22 +126,22 @@ function disable_maintenance() {
     #fi
 
     #sleep 2
-    ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "rm -f /etc/nginx/www/$PROXYNAME-maintenance.html "
+    ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "rm -f /etc/nginx/www/$PROXYNAME-maintenance.html " || echo "(failed)"
   fi
 
 }
 
 function wait_to_end() {
-            PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+            PID=`ps -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
             #echo PID=${PID}
             t=$TIMEOUT
             while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
                 echo -n "."
                 sleep 1
-                PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+                PID=`ps -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
                 t=$(( t - 1 ))
             done
-            PID=`ps -o pid,command -C java|grep $ROOT_DIR|awk '{print $1}'`
+            PID=`ps -o pid,command |grep java|grep $ROOT_DIR|awk '{print $1}'`
 }
 
 

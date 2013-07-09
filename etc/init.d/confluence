@@ -17,7 +17,15 @@ STAMP=`date -u +"%Y%m%d-%H%M%S"`
 
 set -e
 
-. /lib/lsb/init-functions
+if [ -f "/lib/lsb/init-functions" ]; then
+    . /lib/lsb/init-functions
+else # this is for OS X where we do not have them, copy the jira to ~/bin and be sure this is part of your PATH
+    shopt -s expand_aliases
+    alias log_action_msg=echo
+    alias log_daemon_msg=echo
+    alias log_progress_msg=echo
+    alias log_end_msg=echo
+fi
 
 #JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
 # NOTE: Do not rely on any previously configured JAVA_OPTS.
@@ -29,7 +37,6 @@ function moveallto() {
     mkdir -p ${DESTDIR}
     find -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
 }
-
 
 
 TIMEOUT=30
@@ -54,15 +61,18 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/$NAME/bin /opt/Confluence/bin
+for ROOT_DIR in /opt/$NAME/bin /opt/Confluence/bin ~/opt/confluence/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 
-CONFLUENCE_HOME=/var/local/confluence
+for CONFLUENCE_HOME in /var/local/confluence ~/dev/data/confluence
+do
+    if [ -d "$CONFLUENCE_HOME" ]; then break ; fi
+done
 
-test -x "${ROOT_DIR}/startup.sh" || exit 1
-test -x "${ROOT_DIR}/shutdown.sh" || exit 1
+test -x "${ROOT_DIR}/startup.sh" || ((echo "unable to find confluence startup.sh" && exit 1))
+test -x "${ROOT_DIR}/shutdown.sh" || ((echo "unable to find confluence shutdownp.sh" && exit 1))
 
 # read the address where the service is supposed to respond
 PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
@@ -130,7 +140,7 @@ function disable_maintenance() {
 }
 
 function thread_dump() {
-  PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+  PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
   count=5
   delay=0.5
   echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
@@ -151,16 +161,16 @@ function thread_dump() {
 }
 
 function wait_to_end() {
-            PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+            PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
             #echo PID=${PID}
             t=$TIMEOUT
             while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
                 echo -n "."
                 sleep 1
-                PID=`ps -o pid,command -C java|grep "$ROOT_DIR"|awk '{print $1}'`
+                PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
                 t=$(( t - 1 ))
             done
-            PID=`ps -o pid,command -C java|grep $ROOT_DIR|awk '{print $1}'`
+            PID=`ps -o pid,command|grep java|grep $ROOT_DIR|awk '{print $1}'`
 }
 
 

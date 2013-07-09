@@ -667,7 +667,8 @@ for product in products:
         logging.error("Freespace on % is %s MB but we need at least %s MB free. Fix the problem and try again." % (wrkdir,freespace,products[product]['size']))
         sys.exit(2)
     
-    run('cd %s && wget --timestamp --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -u -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % (wrkdir,url))
+    # sed -u  - not avilable under OS X
+    run('cd %s && wget --timestamp --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % (wrkdir,url))
     run('cd %s && tar -xzf %s' % (wrkdir,archive))
     
     old_dir = "%s-%s-old" % (products[product]['path'],current_version)
@@ -680,19 +681,22 @@ for product in products:
       sys.exit()
 
     
-    run('service %s stop' % product)
+    run('service %s stop || jira stop' % product)
     run('mv %s %s' % (products[product]['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
     
     for f in products[product]['keep']:
        run('cp -af %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
-    run('service %s start' % product)
+    run('service %s start || jira start' % product)
 
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       cmd = "tail -f %s | tee /proc/$$/fd/0 | grep 'org.apache.catalina.startup.Catalina start' | read -t 1200 dummy_var" % products[product]['log']
+       if platform.system() == 'Darwin': # OS X does not have a /proc/
+           cmd = "tail -F %s" % products[product]['log']
+       else:
+           cmd = "tail -F %s | tee /proc/$$/fd/0 | grep 'org.apache.catalina.startup.Catalina start' | read -t 1200 dummy_var" % products[product]['log']
        run(cmd)
 
     run('rm %s' % archive)
