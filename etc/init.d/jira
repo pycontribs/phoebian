@@ -196,6 +196,11 @@ case "$1" in
     daemon_stop
     log_end_msg 0
     ;;
+  clean)
+    daemon_stop
+    rm -rf ${JIRA_HOME}/caches/indexes ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/*
+
+    ;;
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
@@ -210,7 +215,7 @@ case "$1" in
     fi
     ;;
   *)
-    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|restart|status}" || true
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status}" || true
     clean_exit 1
     ;;
 esac
