@@ -661,10 +661,10 @@ for product in products:
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
     
-    wrkdir = os.path.normpath(os.path.join(products[product]['path'],".."))
+    wrkdir = os.path.normpath(os.path.join(products[product]['path'],'..'))
     freespace = get_free_space_mb(wrkdir)
     if freespace < products[product]['size']:
-        logging.error("Freespace on % is %s MB but we need at least %s MB free. Fix the problem and try again." % (wrkdir,freespace,products[product]['size']))
+        logging.error("Freespace on %s is %s MB but we need at least %s MB free. Fix the problem and try again." % (wrkdir,freespace,products[product]['size']))
         sys.exit(2)
     
     # sed -u  - not avilable under OS X
