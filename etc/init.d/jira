@@ -55,7 +55,7 @@ export JAVA_HOME
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/$NAME/bin /opt/Jira/bin
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
