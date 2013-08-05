@@ -19,6 +19,7 @@
 
 import codecs
 import ctypes
+import datetime
 import urllib2
 import json
 import os
@@ -28,6 +29,7 @@ import sys
 import logging
 from distutils.version import LooseVersion
 from optparse import OptionParser
+
 
 # http://www.python.org/dev/peps/pep-0386/
 FINAL_MARKER = ('f',)
@@ -602,6 +604,24 @@ logging.basicConfig(level=loglevel,
 
 def enable_logging():
     logging.getLogger().setLevel(logging.DEBUG)
+
+
+# --- smart auto-update code which is supposed to get latest version from the repo and recall the script if needed
+def modification_date(filename):
+    t = os.path.getmtime(filename)
+    return datetime.datetime.fromtimestamp(t)
+
+n = modification_date(__file__)
+if os.system("hg pull -u"):
+    logging.error("Critical error, `hg pull -u` returned an error code.")
+    sys.exit(1)
+
+if n != modification_date(__file__):
+     loggging.warning("We've being updated, we ")
+     os.execv(".",sys.argv)
+
+# --- end of auto-update
+
 
 product = None
 for product in products:
