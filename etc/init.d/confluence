@@ -2,10 +2,10 @@
 
 ### BEGIN INIT INFO
 # Provides:        confluence
-# Required-Start:    $remote_fs $network $ssh
-# Required-Stop:    $remote_fs $network $ssh
-# Default-Start:    3 4 5
-# Default-Stop:        1 2
+# Required-Start:    $remote_fs $network $ssh $remote_fs
+# Required-Stop:    $remote_fs $network $ssh $remote_fs
+# Default-Start:    2 3 4 5
+# Default-Stop:        0 1 6
 # Short-Description:    Confluence
 ### END INIT INFO
 
