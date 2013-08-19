@@ -707,7 +707,8 @@ for product in products:
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
     
     for f in products[product]['keep']:
-       run('cp -af %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
+        if os.path.exits(os.path.join(old_dir,f)):
+            run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
     run('service %s start || jira start' % product)
 
