@@ -538,7 +538,8 @@ def run(cmd, fatal=True):
 products = {
   'jira': { 
     'path':'/opt/jira', 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties'],
+    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'atlassian-jira/secure/admin/custom/findattachments.jsp'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
