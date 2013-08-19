@@ -152,9 +152,8 @@ function daemon_start() {
         moveallto $STAMP
         popd >> /dev/null
 
-        # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
-        rm -rf $ROOT_DIR/../work/*
-
+        daemon_clean
+        
         # rotating the logs, so we get an empty set for each restart
         pushd $(pwd) >> /dev/null
         cd $JIRA_HOME/log
@@ -183,6 +182,12 @@ function daemon_stop() {
         fi
 }
 
+function daemon_clean() {
+    # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
+
+    rm -rf ${JIRA_HOME}/caches/indexes ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/*
+}
+
 case "$1" in
   start)
     log_daemon_msg "Starting $NAME instance" "$NAME"
@@ -197,9 +202,9 @@ case "$1" in
     log_end_msg 0
     ;;
   clean)
+    # daemon_clean is already part of the daemon_start, but it is here just for covenience
     daemon_stop
-    rm -rf ${JIRA_HOME}/caches/indexes ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/*
-
+    daemon_clean
     ;;
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
