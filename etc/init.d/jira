@@ -131,17 +131,21 @@ function disable_maintenance() {
 
 }
 
+function get_PID() {
+    PID=`ps -A -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+}
+
 function wait_to_end() {
-            PID=`ps -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
-            #echo PID=${PID}
+            get_PID
+            echo PID=${PID}
             t=$TIMEOUT
             while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
                 echo -n "."
                 sleep 1
-                PID=`ps -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+                get_PID
                 t=$(( t - 1 ))
             done
-            PID=`ps -o pid,command |grep java|grep $ROOT_DIR|awk '{print $1}'`
+            get_PID
 }
 
 
@@ -169,6 +173,7 @@ function daemon_start() {
 }
 
 function daemon_stop() {
+    log_progress_msg " shutdown.sh "
     "${ROOT_DIR}/shutdown.sh" 2>&1 >>${OUTPUT} || true
     wait_to_end
         if [ -n "$PID" ]; then
@@ -200,6 +205,11 @@ case "$1" in
     daemon_stop
     rm -rf ${JIRA_HOME}/caches/indexes ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/*
 
+    ;;
+
+  status)
+    get_PID
+    echo $PID
     ;;
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
