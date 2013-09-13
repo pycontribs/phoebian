@@ -172,6 +172,7 @@ function daemon_start() {
 }
 
 function daemon_stop() {
+    log_progress_msg " shutdown.sh "
     "${ROOT_DIR}/shutdown.sh" 2>&1 >>${OUTPUT} || true
     wait_to_end
         if [ -n "$PID" ]; then
@@ -210,6 +211,11 @@ case "$1" in
     # daemon_clean is already part of the daemon_start, but it is here just for covenience
     daemon_stop
     daemon_clean
+    ;;
+
+  status)
+    get_PID
+    echo $PID
     ;;
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
