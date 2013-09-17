@@ -20,6 +20,7 @@
 import codecs
 import ctypes
 import datetime
+import inspect
 import urllib2
 import json
 import os
@@ -31,7 +32,8 @@ from distutils.version import LooseVersion
 from optparse import OptionParser
 
 
-# http://www.python.org/dev/peps/pep-0386/
+MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
+
 FINAL_MARKER = ('f',)
 VERSION_RE = re.compile(r'''
     ^
@@ -613,7 +615,8 @@ def modification_date(filename):
     return datetime.datetime.fromtimestamp(t)
 
 n = modification_date(__file__)
-if os.system("hg pull -u"):
+os.chdir(MYDIR)
+if os.system("hg pull -q -u"):
     logging.error("Critical error, `hg pull -u` returned an error code.")
     sys.exit(1)
 
