@@ -55,15 +55,22 @@ export JAVA_HOME
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin ~/opt/jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 
-JIRA_HOME=/var/local/jira
+for JIRA_HOME in ~/var/local/jira /var/local/jira
+do
+    if [ -d "$JIRA_HOME" ]; then break ; fi
+done
+export JIRA_HOME
 
-test -x "${ROOT_DIR}/startup.sh" || exit 1
-test -x "${ROOT_DIR}/shutdown.sh" || exit 1
+test -x "${ROOT_DIR}/startup.sh" || { echo "Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
+test -x "${ROOT_DIR}/shutdown.sh" || { echo "Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
+test -x "${JIRA_HOME}" || { echo "JIRA_HOME=${JIRA_HOME} but it doesn't exist." ; exit 1; }
+
+echo ${JIRA_HOME}
 
 # empty jira ugly banner
 echo "" > ${ROOT_DIR}/jirabanner.txt
@@ -122,7 +129,7 @@ function disable_maintenance() {
     #if tty -s; then
         # do_interactive_stuff
         #
-        #( tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null & ( (tail -q -F /var/local/jira/log/atlassian-jira.log 2>/dev/null | grep -l 'You can now access JIRA through your web browser' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
+        #( tail -q -F ${JIRA_HOME}/../log/atlassian-jira.log 2>/dev/null & ( (tail -q -F ${JIRA_HOME}/../log/atlassian-jira.log 2>/dev/null | grep -l 'You can now access JIRA through your web browser' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
     #fi
 
     #sleep 2
@@ -164,11 +171,15 @@ function daemon_start() {
         moveallto $STAMP
         popd >> /dev/null
 
+        sudo mkdir -p $JIRA_HOME/import/attachments
+        sudo mkdir -p $JIRA_HOME/import/mail
+
     if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
         log_end_msg 0
     else
         log_end_msg 1
     fi
+    cat ${OUTPUT}
 }
 
 function daemon_stop() {
@@ -198,12 +209,12 @@ case "$1" in
   start)
     log_daemon_msg "Starting $NAME instance" "$NAME"
     daemon_start
-    disable_maintenance
+    #disable_maintenance
     ;;
   stop)
     log_daemon_msg "Stopping $NAME instance" "$NAME"
     
-    enable_maintenance
+    #enable_maintenance
     daemon_stop
     log_end_msg 0
     ;;
@@ -222,13 +233,13 @@ case "$1" in
 
     # if someone stopped jira on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
     # This allows us to restart jira using nagios when it stops responding, as long it wasn't stopped on purpose.
-    if exit_if_maintenance; then
-        clean_exit 1
-    else
+    #if exit_if_maintenance; then
+    #    clean_exit 1
+    #else
         daemon_stop
         daemon_start
         echo "run time is $(expr `date +%s` - $start_time)s ... stil it could take few minutes until the service is fully up."
-    fi
+    #fi
     ;;
   *)
     log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status}" || true
