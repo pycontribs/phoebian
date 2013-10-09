@@ -8,7 +8,11 @@
  
 RUN_AS_USER=root
 CATALINA_HOME=/opt/crowd/apache-tomcat
- 
+
+function get_PID() {
+    PID=`ps -A -o pid,command |grep java|grep "$CATALINA_HOME"|awk '{print $1}'`
+}
+
 start() {
         echo "Starting Crowd: "
         if [ "x$USER" != "x$RUN_AS_USER" ]; then
@@ -25,6 +29,12 @@ stop() {
         else
           $CATALINA_HOME/bin/shutdown.sh
         fi
+        sleep 5
+        get_PID
+        if [ -n "$PID" ]; then
+            log_progress_msg " killing $PID "
+            kill -9 $PID
+        fi
         echo "done."
 }
  
@@ -37,9 +47,6 @@ case "$1" in
         ;;
   restart)
         stop
-        sleep 10
-        #echo "Hard killing any remaining threads.."
-        #kill -9 `cat $CATALINA_HOME/work/catalina.pid`
         start
         ;;
   *)
