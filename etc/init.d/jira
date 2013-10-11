@@ -173,6 +173,7 @@ function daemon_start() {
 
         sudo mkdir -p $JIRA_HOME/import/attachments
         sudo mkdir -p $JIRA_HOME/import/mail
+        sudo mkdir -p $JIRA_HOME/caches/indexes/entities/portalpage
 
     if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
         log_end_msg 0

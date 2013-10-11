@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+apt-get update -y -q=2
+apt-get upgrade oracle-java7-installer -y -q=2
 hg -q pull -R /opt/phoebian
 hg -q update -R /opt/phoebian
 python /opt/phoebian/atlassian-updater.py -q
