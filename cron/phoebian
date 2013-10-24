@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+apt-get update -q=2
 hg -q pull -R /opt/phoebian
 hg -q update -R /opt/phoebian
 python /opt/phoebian/atlassian-updater.py -q
