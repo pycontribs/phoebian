@@ -93,6 +93,10 @@ if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi
 
+function get_PID() {
+    PID=`ps -A -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+}
+
 
 clean_exit() {
   zero=0
@@ -140,7 +144,7 @@ function disable_maintenance() {
 }
 
 function thread_dump() {
-  PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+  get_PID
   count=5
   delay=0.5
   echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
@@ -161,16 +165,16 @@ function thread_dump() {
 }
 
 function wait_to_end() {
-            PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+            get_PID
             #echo PID=${PID}
             t=$TIMEOUT
             while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
                 echo -n "."
                 sleep 1
-                PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+                get_PID
                 t=$(( t - 1 ))
             done
-            PID=`ps -o pid,command|grep java|grep $ROOT_DIR|awk '{print $1}'`
+            get_PID
 }
 
 
@@ -231,6 +235,12 @@ case "$1" in
     log_daemon_msg "Thread dumping $NAME instance" "$NAME"
     thread_dump $PID
     ;;
+  status)
+    get_PID
+    log_daemon_msg "$NAME instance PID=$PID" "$NAME"
+    echo .
+    ;;
+
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
