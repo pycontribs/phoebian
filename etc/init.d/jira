@@ -44,14 +44,18 @@ OUTPUT=$(mktemp)
 
 # set -e
 
-# detect java location
-if [ -n "$JAVA_HOME" ]; then
+if [ -f /usr/libexec/java_home ]; then
+export JAVA_HOME=$(/usr/libexec/java_home)
+else
+  # detect java location
+  if [ -n "$JAVA_HOME" ]; then
     for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
+  fi
+  export JAVA_HOME
 fi
-export JAVA_HOME
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
@@ -180,7 +184,7 @@ function thread_dump() {
 
 function daemon_start() {
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >> /dev/null
+        pushd "$(pwd)" >> /dev/null
         cd $ROOT_DIR/../logs
         moveallto $STAMP
         popd >> /dev/null
@@ -188,7 +192,7 @@ function daemon_start() {
         daemon_clean
         
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >> /dev/null
+        pushd "$(pwd)" >> /dev/null
         cd $JIRA_HOME/log
         moveallto $STAMP
         popd >> /dev/null
