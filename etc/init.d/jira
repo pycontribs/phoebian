@@ -62,9 +62,9 @@ fi
 for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin ~/opt/jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
-done
+	done
 
-for JIRA_HOME in ~/var/local/jira /var/local/jira
+for JIRA_HOME in ~/var/local/jira /var/local/jira /var/atlassian/application-data/jira
 do
     if [ -d "$JIRA_HOME" ]; then break ; fi
 done
