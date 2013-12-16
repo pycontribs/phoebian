@@ -61,12 +61,12 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/$NAME/bin /opt/Confluence/bin ~/opt/confluence/bin
+for ROOT_DIR in /opt/Confluence/bin ~/opt/confluence/bin /opt/$NAME/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 
-for CONFLUENCE_HOME in /var/local/confluence ~/dev/data/confluence
+for CONFLUENCE_HOME in /var/atlassian/application-data/confluence /var/local/confluence ~/dev/data/confluence
 do
     if [ -d "$CONFLUENCE_HOME" ]; then break ; fi
 done
@@ -92,6 +92,9 @@ echo "Supposed to run on port $PORT and be accesible using $URL" >${OUTPUT}
 if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi
+
+
+mkdir -p ${CONFLUENCE_HOME}/logs
 
 function get_PID() {
     PID=`ps -A -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
@@ -194,11 +197,16 @@ function daemon_start() {
         moveallto $STAMP
         popd >> /dev/null
 
-    if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
-        log_end_msg 0
-    else
-        log_end_msg 1
-    fi
+        rm -rf $CONFLUENCE_HOME/plugins-osgi-cache/*
+        rm -rf $CONFLUENCE_HOME/bundled-plugins/*
+        rm -rf $CONFLUENCE_HOME/plugins-temp/*
+        rm -rf $CONFLUENCE_HOME/plugins-cache/*
+
+        if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
 }
 
 function daemon_stop() {
