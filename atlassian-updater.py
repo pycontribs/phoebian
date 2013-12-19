@@ -539,7 +539,7 @@ def run(cmd, fatal=True):
 
 products = {
   'jira': { 
-    'path':'/opt/atlassian/jira', 
+    'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
     'atlassian-jira/secure/admin/custom/findattachments.jsp'],
     'filter_description':'TAR.GZ',
@@ -550,16 +550,16 @@ products = {
     'min_version':'4.0',
     },
  'confluence': {
-    'path':'/opt/Confluence',
+    'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
     'keep': ['conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
-    'log':'',
+    'log':'/logs/catalina.out',
     'size':1000,
     'min_version': '4.0'
     }, 
   'crowd': {
-    'path':'/opt/crowd',
+    'paths':['/opt/crowd','/opt/atlassian/crowd'],
     'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
@@ -568,7 +568,7 @@ products = {
     'log': '/apache-tomcat/logs/catalina.out',
     },
   'bamboo': {
-    'path':'/opt/atlassian-bamboo',
+    'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
     'keep': ['webapp/WEB-INF/classes/bamboo-init.properties','conf/wrapper.conf'],
     'filter_description':'TAR.GZ',
 
@@ -631,6 +631,14 @@ product = None
 for product in products:
     products[product]['start']='sudo service %s start' % product
     products[product]['stop']='sudo service %s stop' % product
+
+    for path in products[product]['paths']:
+        if os.path.exists(path):
+            products[product]['path']=path
+            break
+    if 'path' not in products[product]:
+        logging.info("`%s` not found..." % product)
+        continue
 
     if platform.system() == 'Darwin':
         if not os.path.exists(products[product]['path']):

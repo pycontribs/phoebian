@@ -61,18 +61,27 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/Confluence/bin ~/opt/confluence/bin /opt/$NAME/bin
+for ROOT_DIR in /opt/Confluence/bin ~/opt/confluence/bin /opt/$NAME/bin /opt/atlassian/confluence/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
+if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
+  echo "FATAL: Unable to detect confluence install directory."
+  exit 1
+fi
 
-for CONFLUENCE_HOME in /var/atlassian/application-data/confluence /var/local/confluence ~/dev/data/confluence
+for CONFLUENCE_HOME in /var/atlassian/application-data/confluence /var/local/confluence ~/dev/data/confluence /var/atlassian/application-data/confluence
 do
     if [ -d "$CONFLUENCE_HOME" ]; then break ; fi
 done
+if [[ ! -f "$CONFLUENCE_HOME/confluence.cfg.xml" ]] ; then 
+   echo "FATAL: Unable to detect confluence home directory."
+   exit 1
+fi
 
-test -x "${ROOT_DIR}/startup.sh" || ((echo "unable to find confluence startup.sh" && exit 1))
-test -x "${ROOT_DIR}/shutdown.sh" || ((echo "unable to find confluence shutdownp.sh" && exit 1))
+
+#test -x "${ROOT_DIR}/startup.sh" || ((echo "unable to find confluence startup.sh" && exit 1))
+#test -x "${ROOT_DIR}/shutdown.sh" || ((echo "unable to find confluence shutdownp.sh" && exit 1))
 
 # read the address where the service is supposed to respond
 PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
@@ -202,7 +211,9 @@ function daemon_start() {
         rm -rf $CONFLUENCE_HOME/plugins-temp/*
         rm -rf $CONFLUENCE_HOME/plugins-cache/*
 
-        if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+        #if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+        if "${ROOT_DIR}/startup.sh" ; then
+
             log_end_msg 0
         else
             log_end_msg 1
