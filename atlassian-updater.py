@@ -548,6 +548,7 @@ products = {
     'log': '/logs/catalina.out',
     'size': 1300+300,
     'min_version':'4.0',
+    'user': 'jira',
     },
  'confluence': {
     'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
@@ -556,7 +557,8 @@ products = {
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'/logs/catalina.out',
     'size':1000,
-    'min_version': '4.0'
+    'min_version': '4.0',
+    'user': 'confluence',
     }, 
   'crowd': {
     'paths':['/opt/crowd','/opt/atlassian/crowd'],
@@ -566,16 +568,18 @@ products = {
     'size':500+300, # mininum amount of space needed for downloadin and insalling the updgrade
     'min_version':'2.0',
     'log': '/apache-tomcat/logs/catalina.out',
+    'user': 'crowd',
     },
   'bamboo': {
     'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
     'keep': ['webapp/WEB-INF/classes/bamboo-init.properties','conf/wrapper.conf'],
     'filter_description':'TAR.GZ',
 
-    'version': "cat webapp/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-server/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
+    'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and insalling the updgrade
     'min_version':'4.4.5',
     'log': '/logs/bamboo.log',
+    'user': 'bamboo',
     },
 
 }
@@ -716,6 +720,7 @@ for product in products:
     run('service %s stop || echo ignoring stop failure because it could also be already stopped' % product)
     run('mv %s %s' % (products[product]['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
+    run('chown -R %s %s' % (products[product]['user'],products[product]['path']))
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):
@@ -730,11 +735,11 @@ for product in products:
        run(cmd)
 
     run('rm %s' % archive)
-    break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 
-    # TODO: use versioned .old directory to allow multiple updates
+    # archive old version and keep only the archive
     run("tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
-    # TODO: archive old version in order to preserve disk space
+
+    break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 
 if not product:
    logging.error('No product to be upgraded was found!')
