@@ -541,7 +541,7 @@ products = {
   'jira': { 
     'path':'/opt/jira', 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -711,6 +711,7 @@ for product in products:
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):
+            run('mkdir -p "%s"' % os.path.dirname(os.path.join(products[product]['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
     run('service %s start || jira start' % product)
