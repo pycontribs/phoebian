@@ -539,43 +539,47 @@ def run(cmd, fatal=True):
 
 products = {
   'jira': { 
-    'path':'/opt/jira', 
+    'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
     'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
-    'log': '/opt/jira/logs/catalina.out',
+    'log': '/logs/catalina.out',
     'size': 1300+300,
     'min_version':'4.0',
+    'user': 'jira',
     },
  'confluence': {
-    'path':'/opt/Confluence',
+    'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
     'keep': ['conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
-    'log':'',
+    'log':'/logs/catalina.out',
     'size':1000,
-    'min_version': '4.0'
+    'min_version': '4.0',
+    'user': 'confluence',
     }, 
   'crowd': {
-    'path':'/opt/crowd',
+    'paths':['/opt/crowd','/opt/atlassian/crowd'],
     'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and insalling the updgrade
     'min_version':'2.0',
-    'log': '/opt/crowd/apache-tomcat/logs/catalina.out',
+    'log': '/apache-tomcat/logs/catalina.out',
+    'user': 'crowd',
     },
   'bamboo': {
-    'path':'/opt/atlassian-bamboo',
+    'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
     'keep': ['webapp/WEB-INF/classes/bamboo-init.properties','conf/wrapper.conf'],
     'filter_description':'TAR.GZ',
 
-    'version': "cat webapp/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-server/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
+    'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and insalling the updgrade
     'min_version':'4.4.5',
-    'log': '/opt/atlassian-bamboo/logs/bamboo.log',
+    'log': '/logs/bamboo.log',
+    'user': 'bamboo',
     },
 
 }
@@ -631,6 +635,14 @@ product = None
 for product in products:
     products[product]['start']='sudo service %s start' % product
     products[product]['stop']='sudo service %s stop' % product
+
+    for path in products[product]['paths']:
+        if os.path.exists(path):
+            products[product]['path']=path
+            break
+    if 'path' not in products[product]:
+        logging.info("`%s` not found..." % product)
+        continue
 
     if platform.system() == 'Darwin':
         if not os.path.exists(products[product]['path']):
@@ -705,32 +717,30 @@ for product in products:
       sys.exit()
 
     
-    run('service %s stop || jira stop' % product)
+    run('service %s stop || echo ignoring stop failure because it could also be already stopped' % product)
     run('mv %s %s' % (products[product]['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
+    run('chown -R %s %s' % (products[product]['user'],products[product]['path']))
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):
             run('mkdir -p "%s"' % os.path.dirname(os.path.join(products[product]['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
-    run('service %s start || jira start' % product)
+    run('service %s start' % product)
 
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       if platform.system() == 'Darwin': # OS X does not have a /proc/
-           cmd = "tail -F %s" % products[product]['log']
-       else:
-           cmd = "tail -F %s | tee /proc/$$/fd/0 | grep 'org.apache.catalina.startup.Catalina start' | read -t 1200 dummy_var" % products[product]['log']
+       cmd = "tail -F %s" % products[product]['log']
        run(cmd)
 
     run('rm %s' % archive)
-    break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 
-    # TODO: use versioned .old directory to allow multiple updates
+    # archive old version and keep only the archive
     run("tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
-    # TODO: archive old version in order to preserve disk space
+
+    break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 
 if not product:
    logging.error('No product to be upgraded was found!')

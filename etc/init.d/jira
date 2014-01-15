@@ -44,23 +44,27 @@ OUTPUT=$(mktemp)
 
 # set -e
 
-# detect java location
-if [ -n "$JAVA_HOME" ]; then
+if [ -f /usr/libexec/java_home ]; then
+export JAVA_HOME=$(/usr/libexec/java_home)
+else
+  # detect java location
+  if [ -n "$JAVA_HOME" ]; then
     for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
+  fi
+  export JAVA_HOME
 fi
-export JAVA_HOME
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
 for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin ~/opt/jira/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
-done
+	done
 
-for JIRA_HOME in ~/var/local/jira /var/local/jira
+for JIRA_HOME in ~/var/local/jira /var/local/jira /var/atlassian/application-data/jira
 do
     if [ -d "$JIRA_HOME" ]; then break ; fi
 done
@@ -155,10 +159,32 @@ function wait_to_end() {
             get_PID
 }
 
+function thread_dump() {
+  get_PID
+  count=5
+  delay=0.5
+
+  if which jstack >/dev/null ; then
+
+    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
+    while [ $count -gt 0 ]
+    do
+      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).txt"
+      echo "---" >> ${DUMP}
+      jstack -l $PID >> ${DUMP}
+      sleep $delay
+      let count--
+      echo -n "."
+    done
+
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+}
 
 function daemon_start() {
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >> /dev/null
+        pushd "$(pwd)" >> /dev/null
         cd $ROOT_DIR/../logs
         moveallto $STAMP
         popd >> /dev/null
@@ -166,7 +192,7 @@ function daemon_start() {
         daemon_clean
         
         # rotating the logs, so we get an empty set for each restart
-        pushd $(pwd) >> /dev/null
+        pushd "$(pwd)" >> /dev/null
         cd $JIRA_HOME/log
         moveallto $STAMP
         popd >> /dev/null
@@ -185,14 +211,18 @@ function daemon_start() {
 
 function daemon_stop() {
     log_progress_msg " shutdown.sh "
-    "${ROOT_DIR}/shutdown.sh" 2>&1 >>${OUTPUT} || true
+    SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
+    # 2>&1 >>${OUTPUT} || true
     wait_to_end
         if [ -n "$PID" ]; then
             log_progress_msg " forcing "
-            "${ROOT_DIR}/shutdown.sh" -force 2>&1 >>${OUTPUT} || true
+            thread_dump
+            SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" 20 -force  || true
+            # 2>&1 >>${OUTPUT}
             wait_to_end
             if [ -n "$PID" ]; then
                     log_progress_msg " killing $PID "
+                    thread_dump
                     kill -9 $PID
                     wait_to_end
             fi

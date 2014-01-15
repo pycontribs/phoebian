@@ -1,12 +1,21 @@
 #!/bin/bash
 # Crowd startup script
+### BEGIN INIT INFO
+# Provides:          crowd
+# Required-Start:    $local_fs $network
+# Required-Stop:     $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: crowd
+# Description:       crowd daemon
+### END INIT INFO
 #chkconfig: 2345 80 05
 #description: Crowd
  
  
 # Based on script at http://www.bifrost.org/problems.html
  
-RUN_AS_USER=root
+RUN_AS_USER=crowd
 CATALINA_HOME=/opt/crowd/apache-tomcat
 
 function get_PID() {

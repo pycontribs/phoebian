@@ -61,18 +61,27 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/$NAME/bin /opt/Confluence/bin ~/opt/confluence/bin
+for ROOT_DIR in /opt/Confluence/bin ~/opt/confluence/bin /opt/$NAME/bin /opt/atlassian/confluence/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
+if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
+  echo "FATAL: Unable to detect confluence install directory."
+  exit 1
+fi
 
-for CONFLUENCE_HOME in /var/local/confluence ~/dev/data/confluence
+for CONFLUENCE_HOME in /var/atlassian/application-data/confluence /var/local/confluence ~/dev/data/confluence /var/atlassian/application-data/confluence
 do
     if [ -d "$CONFLUENCE_HOME" ]; then break ; fi
 done
+if [[ ! -f "$CONFLUENCE_HOME/confluence.cfg.xml" ]] ; then 
+   echo "FATAL: Unable to detect confluence home directory."
+   exit 1
+fi
 
-test -x "${ROOT_DIR}/startup.sh" || ((echo "unable to find confluence startup.sh" && exit 1))
-test -x "${ROOT_DIR}/shutdown.sh" || ((echo "unable to find confluence shutdownp.sh" && exit 1))
+
+#test -x "${ROOT_DIR}/startup.sh" || ((echo "unable to find confluence startup.sh" && exit 1))
+#test -x "${ROOT_DIR}/shutdown.sh" || ((echo "unable to find confluence shutdownp.sh" && exit 1))
 
 # read the address where the service is supposed to respond
 PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
@@ -92,6 +101,13 @@ echo "Supposed to run on port $PORT and be accesible using $URL" >${OUTPUT}
 if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi
+
+
+mkdir -p ${CONFLUENCE_HOME}/logs
+
+function get_PID() {
+    PID=`ps -A -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+}
 
 
 clean_exit() {
@@ -140,7 +156,7 @@ function disable_maintenance() {
 }
 
 function thread_dump() {
-  PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+  get_PID
   count=5
   delay=0.5
   echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
@@ -161,16 +177,16 @@ function thread_dump() {
 }
 
 function wait_to_end() {
-            PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+            get_PID
             #echo PID=${PID}
             t=$TIMEOUT
             while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
                 echo -n "."
                 sleep 1
-                PID=`ps -o pid,command|grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+                get_PID
                 t=$(( t - 1 ))
             done
-            PID=`ps -o pid,command|grep java|grep $ROOT_DIR|awk '{print $1}'`
+            get_PID
 }
 
 
@@ -190,11 +206,18 @@ function daemon_start() {
         moveallto $STAMP
         popd >> /dev/null
 
-    if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
-        log_end_msg 0
-    else
-        log_end_msg 1
-    fi
+        rm -rf $CONFLUENCE_HOME/plugins-osgi-cache/*
+        rm -rf $CONFLUENCE_HOME/bundled-plugins/*
+        rm -rf $CONFLUENCE_HOME/plugins-temp/*
+        rm -rf $CONFLUENCE_HOME/plugins-cache/*
+
+        #if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+        if "${ROOT_DIR}/startup.sh" ; then
+
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
 }
 
 function daemon_stop() {
@@ -231,6 +254,12 @@ case "$1" in
     log_daemon_msg "Thread dumping $NAME instance" "$NAME"
     thread_dump $PID
     ;;
+  status)
+    get_PID
+    log_daemon_msg "$NAME instance PID=$PID" "$NAME"
+    echo .
+    ;;
+
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
