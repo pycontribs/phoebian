@@ -541,7 +541,7 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/java-melogy*','lib/activation*','lib/mail*'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -572,7 +572,7 @@ products = {
     },
   'bamboo': {
     'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
-    'keep': ['webapp/WEB-INF/classes/bamboo-init.properties','conf/wrapper.conf'],
+    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties'],
     'filter_description':'TAR.GZ',
 
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
