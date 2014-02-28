@@ -552,7 +552,7 @@ products = {
     },
  'confluence': {
     'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
-    'keep': ['conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
+    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'/logs/catalina.out',
@@ -720,7 +720,8 @@ for product in products:
     run('service %s stop || echo ignoring stop failure because it could also be already stopped' % product)
     run('mv %s %s' % (products[product]['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
-    run('chown -R %s %s' % (products[product]['user'],products[product]['path']))
+    run('useradd -m %s || echo ""' % (products[product]['user']))
+    run('chown -R %s %s || echo "failed chown"' % (products[product]['user'],products[product]['path']))
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):

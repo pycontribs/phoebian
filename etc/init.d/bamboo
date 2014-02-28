@@ -1,0 +1,52 @@
+#!/bin/sh -e
+# bamboo startup script
+#chkconfig: 2345 80 05
+#description: bamboo
+ 
+# Define some variables
+# Name of app ( bamboo, Confluence, etc )
+APP=bamboo
+# Name of the user to run as
+USER=bamboo
+# Location of application's bin directory
+BASE=/opt/atlassian/bamboo
+# Location of Java JDK
+
+if [ -f /usr/libexec/java_home ]; then
+export JAVA_HOME=$(/usr/libexec/java_home)
+else
+  # detect java location
+  if [ -n "$JAVA_HOME" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    do
+        if [ -d "$JAVA_HOME" ]; then break ; fi
+    done
+  fi
+  export JAVA_HOME
+fi
+
+case "$1" in
+  # Start command
+  start)
+    echo "Starting $APP"
+    /bin/su -m $USER -c "cd $BASE/logs && $BASE/bin/startup.sh &> /dev/null"
+    ;;
+  # Stop command
+  stop)
+    echo "Stopping $APP"
+    /bin/su -m $USER -c "$BASE/bin/shutdown.sh &> /dev/null"
+    echo "$APP stopped successfully"
+    ;;
+   # Restart command
+   restart)
+        $0 stop
+        sleep 5
+        $0 start
+        ;;
+  *)
+    echo "Usage: /etc/init.d/$APP {start|restart|stop}"
+    exit 1
+    ;;
+esac
+ 
+exit 0
