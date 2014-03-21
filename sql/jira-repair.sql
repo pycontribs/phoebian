@@ -16,3 +16,10 @@ update fileattachment set mimetype = 'application/x-bzip2' where mimetype is nul
 
 -- if next line returns something it means that this script supports improvements.
 select * from fileattachment where mimetype is null;
+
+-- https://confluence.atlassian.com/display/JIRAKB/Reindex+Fails+with+Unable+to+Index+Custom+Date+Field+error
+
+update customfieldvalue SET datevalue = '1970-01-01' 
+   where customfield IN (select id from customfield where customfieldtypekey = 'com.atlassian.jira.plugin.system.customfieldtypes:datetime') 
+   and datevalue < '1970-01-01';
+
