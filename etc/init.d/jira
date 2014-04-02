@@ -233,7 +233,7 @@ function daemon_clean() {
     # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
 
     # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
-    rm -f ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/*
+    rm -rf ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/* || echo "error"
 }
 
 case "$1" in

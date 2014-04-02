@@ -1,3 +1,4 @@
 syntax: glob
 *.pyc
 *.csv
+tools/packages/jira-python.git
