@@ -2,8 +2,8 @@
 
 ### BEGIN INIT INFO
 # Provides:        confluence
-# Required-Start:    $remote_fs $network $ssh $remote_fs
-# Required-Stop:    $remote_fs $network $ssh $remote_fs
+# Required-Start:    $remote_fs $network $ssh $remote_fs postgresql
+# Required-Stop:    $remote_fs $network $ssh $remote_fs postgresql
 # Default-Start:    2 3 4 5
 # Default-Stop:        0 1 6
 # Short-Description:    Confluence
@@ -61,7 +61,7 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/Confluence/bin ~/opt/confluence/bin /opt/$NAME/bin /opt/atlassian/confluence/bin
+for ROOT_DIR in /opt/$NAME/bin ~/opt/$NAME/bin /opt/$NAME/bin /opt/atlassian/$NAME/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
@@ -70,7 +70,7 @@ if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
   exit 1
 fi
 
-for CONFLUENCE_HOME in /var/atlassian/application-data/confluence /var/local/confluence ~/dev/data/confluence /var/atlassian/application-data/confluence
+for CONFLUENCE_HOME in /var/atlassian/application-data/$NAME /var/local/$NAME ~/dev/data/$NAME /var/atlassian/application-data/$NAME
 do
     if [ -d "$CONFLUENCE_HOME" ]; then break ; fi
 done

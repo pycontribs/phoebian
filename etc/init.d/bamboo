@@ -1,4 +1,13 @@
 #!/bin/sh -e
+### BEGIN INIT INFO
+# Provides:        bamboo
+# Required-Start:    $remote_fs $network $ssh postgresql
+# Required-Stop:    $remote_fs $network $ssh postgresql
+# Default-Start:    2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:    Bamboo
+### END INIT INFO                  
+
 # bamboo startup script
 #chkconfig: 2345 80 05
 #description: bamboo
@@ -17,7 +26,7 @@ export JAVA_HOME=$(/usr/libexec/java_home)
 else
   # detect java location
   if [ -n "$JAVA_HOME" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done

@@ -2,8 +2,8 @@
 # Crowd startup script
 ### BEGIN INIT INFO
 # Provides:          crowd
-# Required-Start:    $local_fs $network
-# Required-Stop:     $local_fs
+# Required-Start:    $local_fs $network postgresql
+# Required-Stop:     $local_fs postgresql
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: crowd
@@ -17,6 +17,15 @@
  
 RUN_AS_USER=crowd
 CATALINA_HOME=/opt/crowd/apache-tomcat
+
+for CATALINA_HOME in /opt/crowd/apache-tomcat /opt/atlassian/crowd/apache-tomcat
+do
+    if [ -d "$CATALINA_HOME" ]; then break ; fi
+done
+if [[ ! -e "$CATALINA_HOME/bin/startup.sh" ]] ; then
+  echo "FATAL: Unable to detect install directory."
+  exit 1
+fi
 
 function get_PID() {
     PID=`ps -A -o pid,command |grep java|grep "$CATALINA_HOME"|awk '{print $1}'`

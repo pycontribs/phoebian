@@ -541,7 +541,7 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/java-melogy*','lib/activation*','lib/mail*'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/*melody*.jar','lib/activation*','lib/mail*'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -552,7 +552,7 @@ products = {
     },
  'confluence': {
     'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
-    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
+    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types','lib/*melody*.jar','confluence/lib/*melody*.jar'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'/logs/catalina.out',
@@ -562,21 +562,21 @@ products = {
     }, 
   'crowd': {
     'paths':['/opt/crowd','/opt/atlassian/crowd'],
-    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties'],
+    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
-    'size':500+300, # mininum amount of space needed for downloadin and insalling the updgrade
+    'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
     'log': '/apache-tomcat/logs/catalina.out',
     'user': 'crowd',
     },
   'bamboo': {
     'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
-    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties'],
+    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties','bin/setenv.sh','lib/*melody*.jar'],
     'filter_description':'TAR.GZ',
 
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
-    'size':200+300, # mininum amount of space needed for downloadin and insalling the updgrade
+    'size':200+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'4.4.5',
     'log': '/logs/bamboo.log',
     'user': 'bamboo',
@@ -584,6 +584,8 @@ products = {
 
 }
 
+logging.info("Detecting installed Atlassian instances...")
+#sys.exit()
 
 def get_cmd_output(cmd):
     stdout_handle = os.popen(cmd)
@@ -713,8 +715,8 @@ for product in products:
         sys.exit(1)
 
     if not options.force:
-      logging.info("Stopping here because you did not call script with -y parameter.")
-      sys.exit()
+      logging.info("Skipping next steps because you did not call script with -y parameter.")
+      continue
 
     
     run('service %s stop || echo ignoring stop failure because it could also be already stopped' % product)

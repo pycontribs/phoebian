@@ -2,8 +2,8 @@
 
 ### BEGIN INIT INFO
 # Provides:        jira
-# Required-Start:    $remote_fs $network $ssh
-# Required-Stop:    $remote_fs $network $ssh
+# Required-Start:    $remote_fs $network $ssh postgresql
+# Required-Stop:    $remote_fs $network $ssh postgresql
 # Default-Start:    3 4 5
 # Default-Stop:        1 2
 # Short-Description:    Jira
@@ -49,7 +49,7 @@ export JAVA_HOME=$(/usr/libexec/java_home)
 else
   # detect java location
   if [ -n "$JAVA_HOME" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
@@ -59,12 +59,12 @@ fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin ~/opt/jira/bin
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin  ~/opt/$NAME/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 	done
 
-for JIRA_HOME in ~/var/local/jira /var/local/jira /var/atlassian/application-data/jira
+for JIRA_HOME in ~/var/local/$NAME /var/local/$NAME /var/atlassian/application-data/$NAME
 do
     if [ -d "$JIRA_HOME" ]; then break ; fi
 done
@@ -104,7 +104,7 @@ clean_exit() {
     # we display the output only in case of error
     cat ${OUTPUT}
   fi
-  rm -f ${OUTPUT}
+  rm -f ${OUTPUT} || echo error
   exit $1
 }
 
@@ -127,7 +127,7 @@ function enable_maintenance() {
 
 function disable_maintenance() {
   if [ -f "${ROOT_DIR}/../.maintenance" ]; then
-    rm -f "${ROOT_DIR}/../.maintenance"
+    rm -f "${ROOT_DIR}/../.maintenance" || echo error
     log_progress_msg " (disable maintenance mode for $URL) "
 
     #if tty -s; then
@@ -233,7 +233,7 @@ function daemon_clean() {
     # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
 
     # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
-    rm -f ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/*
+    rm -f ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/* || echo error
 }
 
 case "$1" in
