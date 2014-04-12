@@ -541,7 +541,7 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/java-melogy*','lib/activation*','lib/mail*'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/java-melogy*','lib/activation*','lib/mail*','lib/mysql-connector*'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -552,7 +552,8 @@ products = {
     },
  'confluence': {
     'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
-    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types'],
+    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties',\
+        'confluence/WEB-INF/classes/mime.types','confluence/WEB-INF/classes/lib/mysql-connector*'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
     'log':'/logs/catalina.out',
