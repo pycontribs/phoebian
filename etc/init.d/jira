@@ -190,7 +190,9 @@ function daemon_start() {
         popd >> /dev/null
 
         daemon_clean
-        
+
+        sudo mkdir -p $JIRA_HOME/log
+
         # rotating the logs, so we get an empty set for each restart
         pushd "$(pwd)" >> /dev/null
         cd $JIRA_HOME/log
