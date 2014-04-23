@@ -562,7 +562,7 @@ products = {
     }, 
   'crowd': {
     'paths':['/opt/crowd','/opt/atlassian/crowd'],
-    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar'],
+    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
