@@ -627,7 +627,7 @@ if os.system("hg pull -q -u"):
     sys.exit(1)
 
 if n != modification_date(__file__):
-     loggging.warning("We've being updated, we will run the new version")
+     logging.warning("We've being updated, we will run the new version")
      os.execv(".",sys.argv)
 
 # --- end of auto-update
