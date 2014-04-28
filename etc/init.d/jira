@@ -159,28 +159,6 @@ function wait_to_end() {
             get_PID
 }
 
-function thread_dump() {
-  get_PID
-  count=5
-  delay=0.5
-
-  if which jstack >/dev/null ; then
-
-    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
-    while [ $count -gt 0 ]
-    do
-      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).txt"
-      echo "---" >> ${DUMP}
-      jstack -l $PID >> ${DUMP}
-      sleep $delay
-      let count--
-      echo -n "."
-    done
-
-  else
-    echo "jstack not found, skipping thread dumping."
-  fi
-}
 
 function daemon_start() {
         # rotating the logs, so we get an empty set for each restart
@@ -211,20 +189,69 @@ function daemon_start() {
     cat ${OUTPUT}
 }
 
+
+function thread_dump() {
+  get_PID
+  count=4
+  delay=10
+
+  if which jstack >/dev/null ; then
+
+    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
+    while [ $count -gt 0 ]
+    do
+      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).tdump"
+      echo "---" >> ${DUMP}
+      jstack -l $PID >> ${DUMP}
+      echo "waiting ${delay} seconds..."
+      sleep $delay
+      let count--
+      echo -n "."
+    done
+
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+}
+
+function tdumper() {
+  # $1 should be the name of the dump
+  if [ -z "$2" ] && [ "${2+xxx}" = "xxx" ]; 
+  then
+  delay=0
+  else
+  delay=$2
+  fi
+
+  get_PID
+  if which jstack >/dev/null ; then
+      DUMP="${ROOT_DIR}/../logs/$1"
+      echo "---" >> ${DUMP}
+      echo "dumping ${DUMP}..."
+      jstack -l $PID >> ${DUMP}
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+  sleep $delay
+}
+
+
 function daemon_stop() {
-    log_progress_msg " shutdown.sh "
+    log_progress_msg " normal shutdown "
+    # this one is very usefull 
+    tdumper "threaddump.0.pre-shutdown.tdump"
+
     SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
-    # 2>&1 >>${OUTPUT} || true
     wait_to_end
         if [ -n "$PID" ]; then
-            log_progress_msg " forcing "
-            thread_dump
+            tdumper "threaddump.1.post-shutdown.tdump"
+            log_progress_msg " forced shutdown (20) "
             SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" 20 -force  || true
-            # 2>&1 >>${OUTPUT}
+            tdumper "threaddump.2.post-forced-shutdown.tdump"
             wait_to_end
             if [ -n "$PID" ]; then
                     log_progress_msg " killing $PID "
-                    thread_dump
+                    tdumper "threaddump.3.post-forced-shutdown.tdump"
                     kill -9 $PID
                     wait_to_end
             fi
@@ -257,10 +284,22 @@ case "$1" in
     daemon_clean
     ;;
 
+  dump)
+    echo "Creating 5 thread dumps at 20 seconds interval, so you can send them to Atlassian Support, if JIRA goes crazy"
+    tdumper "dump-0.tdump" 20
+    tdumper "dump-1.tdump" 20
+    tdumper "dump-2.tdump" 20
+    tdumper "dump-3.tdump" 20
+    tdumper "dump-4.tdump" 20
+    echo "--- done ---"
+    ;;
+
   status)
     get_PID
+    #wait_to_end
     echo $PID
     ;;
+
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
@@ -275,7 +314,7 @@ case "$1" in
     #fi
     ;;
   *)
-    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status}" || true
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status|dump}" || true
     clean_exit 1
     ;;
 esac

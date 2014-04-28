@@ -541,7 +541,7 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/jira'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/*melody*.jar','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
