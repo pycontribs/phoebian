@@ -18,6 +18,12 @@
 RUN_AS_USER=crowd
 CATALINA_HOME=/opt/crowd/apache-tomcat
 
+if [ -e /etc/debian_version ]; then
+    . /lib/lsb/init-functions
+elif [ -e /etc/init.d/functions ] ; then
+    . /etc/init.d/functions
+fi
+
 for CATALINA_HOME in /opt/crowd/apache-tomcat /opt/atlassian/crowd/apache-tomcat
 do
     if [ -d "$CATALINA_HOME" ]; then break ; fi
