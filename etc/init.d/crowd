@@ -1,80 +1,392 @@
-#!/bin/bash
-# Crowd startup script
+#! /bin/bash
+
 ### BEGIN INIT INFO
 # Provides:          crowd
-# Required-Start:    $local_fs $network postgresql
-# Required-Stop:     $local_fs postgresql
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
+# Required-Start:    $local_fs $network $ssh $remote_fs postgresql
+# Required-Stop:    $local_fs $network $ssh $remote_fs postgresql
+# Default-Start:    3 4 5
+# Default-Stop:        0 1 2 6
 # Short-Description: crowd
-# Description:       crowd daemon
 ### END INIT INFO
 #chkconfig: 2345 80 05
-#description: Crowd
- 
- 
-# Based on script at http://www.bifrost.org/problems.html
- 
-RUN_AS_USER=crowd
-CATALINA_HOME=/opt/crowd/apache-tomcat
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
+#    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
 
-if [ -e /etc/debian_version ]; then
+# Instance name is the name of the file, this allows you to create multiple instancess using just symlinks
+NAME=`basename $0`
+STAMP=`date -u +"%Y%m%d-%H%M%S"`
+
+if test -f /etc/default/$NAME; then
+    . /etc/default/$NAME
+fi 
+
+set -e
+
+if [ -f "/lib/lsb/init-functions" ]; then
     . /lib/lsb/init-functions
-elif [ -e /etc/init.d/functions ] ; then
-    . /etc/init.d/functions
+else # this is for OS X where we do not have them, copy the jira to ~/bin
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    . ${DIR}/lib/lsb/init-functions
 fi
 
-for CATALINA_HOME in /opt/crowd/apache-tomcat /opt/atlassian/crowd/apache-tomcat
-do
-    if [ -d "$CATALINA_HOME" ]; then break ; fi
-done
-if [[ ! -e "$CATALINA_HOME/bin/startup.sh" ]] ; then
-  echo "FATAL: Unable to detect install directory."
+# TODO: add case for osx
+# shopt -s expand_aliases
+#     alias log_action_msg=echo
+#     alias log_daemon_msg=echo
+#     alias log_progress_msg=echo
+#     alias log_end_msg=echo
+
+
+#JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
+# NOTE: Do not rely on any previously configured JAVA_OPTS.
+export JAVA_OPTS=""
+start_time=`date +%s`
+
+function moveallto() {
+    local DESTDIR=${1}
+    mkdir -p ${DESTDIR}
+    find . -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
+}
+
+TIMEOUT=30
+OUTPUT=$(mktemp)
+# number of seconds to wait before forcing a stop command
+
+# set -e
+
+if [ -f /usr/libexec/java_home ]; then
+export JAVA_HOME=$(/usr/libexec/java_home)
+else
+  # detect java location
+  if [ -n "$JAVA_HOME" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    do
+        if [ -d "$JAVA_HOME" ]; then break ; fi
+    done
+  fi
+fi
+export JAVA_HOME
+
+if [ "${JAVA_HOME}" = "" ] ; then
+  echo "Failed to detect JAVA_HOME location, we cannot proceed."
   exit 1
 fi
 
-function get_PID() {
-    PID=`ps -A -o pid,command |grep java|grep "$CATALINA_HOME"|awk '{print $1}'`
+# detect product location 
+# list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin  ~/opt/$NAME/bin
+do
+    if [ -d "$ROOT_DIR" ]; then break ; fi
+done
+if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
+  echo "FATAL: Unable to detect confluence install directory."
+  exit 1
+fi
+
+# TODO: replace HOME detection with reading from config files of the services
+for SERVICE_HOME in  /var/atlassian/application-data/$NAME ~/var/local/$NAME /var/local/$NAME
+do
+    if [ -d "$SERVICE_HOME" ]; then break ; fi
+done
+test -x "${SERVICE_HOME}" || { echo "FATAL: SERVICE_HOME=${SERVICE_HOME} but it doesn't exist." ; exit 1; }
+
+if [[ $SERVICE_HOME == *confluence* ]]
+then
+    if [[ ! -f "$CONFLUENCE_HOME/confluence.cfg.xml" ]] ; then 
+        echo "FATAL: Unable to detect confluence home directory."
+        exit 1
+    fi
+    test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
+    test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
+
+    mkdir -p ${SERVICE_HOME}/logs
+    SERVICE_LOG_DIR=logs
+    export CONFLUENCE_HOME="${SERVICE_HOME}"
+fi
+if [[ $SERVICE_HOME == *jira* ]]
+then
+    test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
+    test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
+
+    # empty jira ugly banner
+    echo "" > ${ROOT_DIR}/jirabanner.txt
+    SERVICE_LOG_DIR=log
+    export JIRA_HOME="${SERVICE_HOME}"
+fi
+if [[ $SERVICE_HOME == *crowd* ]]
+then
+    test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
+    test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
+
+    SERVICE_LOG_DIR=log
+    RUN_AS_USER=crowd
+    export CATALINA_HOME="${SERVICE_HOME}"
+fi
+
+echo ${SERVICE_HOME}
+
+# read the address where the service is supposed to respond
+PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
+SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
+PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
+
+if [[ -z "$PROXYNAME" ]] ; then PROXYNAME=localhost ; fi
+if [[ -z "$SCHEME" ]] ; then SCHEME=http ; fi
+if [[ -z "$PROXYPORT" ]] ; then PROXYPORT=80 ; fi
+
+URL=${SCHEME}://${PROXYNAME}:${PROXYPORT}
+
+# creating the output file
+echo "Supposed to run on port $PORT and be accesible using $URL" >${OUTPUT}
+
+if test -f /etc/default/$NAME; then
+    . /etc/default/$NAME
+fi
+
+
+
+clean_exit() {
+  zero=0
+  if [ $1 -ne $zero ]; then
+    # we display the output only in case of error
+    cat ${OUTPUT}
+  fi
+  rm -f ${OUTPUT} || echo error
+  exit $1
 }
 
-start() {
-        echo "Starting Crowd: "
-        if [ "x$USER" != "x$RUN_AS_USER" ]; then
-          su - $RUN_AS_USER -c "$CATALINA_HOME/bin/startup.sh"
-        else
-          $CATALINA_HOME/bin/startup.sh
-        fi
-        echo "done."
+function exit_if_maintenance() {
+  if [ -f "${ROOT_DIR}/../.maintenance" ]; then
+    log_progress_msg "Doing nothing as the systems seems to be in maintenance mode."
+    log_end_msg 1
+    return 1
+  fi
+  return 0
 }
-stop() {
-        echo "Shutting down Crowd: "
-        if [ "x$USER" != "x$RUN_AS_USER" ]; then
-          su - $RUN_AS_USER -c "$CATALINA_HOME/bin/shutdown.sh"
-        else
-          $CATALINA_HOME/bin/shutdown.sh
-        fi
-        sleep 5
-        get_PID
+
+
+function get_PID() {
+    PID=`ps -A -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+}
+
+function wait_to_end() {
+            get_PID
+            echo PID=${PID}
+            t=$TIMEOUT
+            while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
+                echo -n "."
+                sleep 1
+                get_PID
+                t=$(( t - 1 ))
+            done
+            get_PID
+}
+
+
+function daemon_start() {
+        # rotating the logs, so we get an empty set for each restart
+        pushd "$(pwd)" >> /dev/null
+        cd $ROOT_DIR/../logs
+        moveallto $STAMP
+        popd >> /dev/null
+
+        daemon_clean
+
+
+        # rotating the logs, so we get an empty set for each restart
+        sudo mkdir -p "$SERVICE_HOME/$SERVICE_LOG_DIR"
+        pushd "$(pwd)" >> /dev/null
+        cd "$SERVICE_HOME/$SERVICE_LOG_DIR"
+        moveallto $STAMP
+        popd >> /dev/null
+
+
+    if [[ $NAME == *jira* ]] ; then
+      sudo mkdir -p $JIRA_HOME/import/attachments
+      sudo mkdir -p $JIRA_HOME/import/mail
+      sudo mkdir -p $JIRA_HOME/caches/indexes/entities/portalpage
+
+      if "${ROOT_DIR}/start-jira.sh" 2>&1 >>${OUTPUT} ; then
+        log_end_msg 0
+      else
+        log_end_msg 1
+      fi
+    fi
+    if [[ $NAME == *confluence* ]] ; then
+      rm -rf $CONFLUENCE_HOME/plugins-osgi-cache/*
+      rm -rf $CONFLUENCE_HOME/bundled-plugins/*
+      rm -rf $CONFLUENCE_HOME/plugins-temp/*
+      rm -rf $CONFLUENCE_HOME/plugins-cache/*
+      if "${ROOT_DIR}/start-confluence.sh" 2>&1 >>${OUTPUT} ; then
+        log_end_msg 0
+      else
+        log_end_msg 1
+      fi
+    fi
+    cat ${OUTPUT}
+
+    if tty -s; then
+        # do_interactive_stuff
+        #
+        echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
+        tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
+    fi
+
+
+}
+
+
+function thread_dump() {
+  get_PID
+  count=4
+  delay=10
+
+  if which jstack >/dev/null ; then
+
+    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
+    while [ $count -gt 0 ]
+    do
+      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).tdump"
+      echo "---" >> ${DUMP}
+      jstack -l $PID >> ${DUMP}
+      echo "waiting ${delay} seconds..."
+      sleep $delay
+      let count--
+      echo -n "."
+    done
+
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+}
+
+function tdumper() {
+  # $1 should be the name of the dump
+  if [ -z "$2" ] && [ "${2+xxx}" = "xxx" ]; 
+  then
+  delay=0
+  else
+  delay=$2
+  fi
+
+  get_PID
+  if which jstack >/dev/null ; then
+      DUMP="${ROOT_DIR}/../logs/$1"
+      echo "---" >> ${DUMP}
+      echo "dumping ${DUMP}..."
+      jstack -l $PID  >> ${DUMP} || echo "jstack failed"
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+  #sleep $delay
+}
+
+
+function daemon_stop() {
+    log_progress_msg " normal shutdown "
+    # this one is very usefull 
+    tdumper "threaddump.0.pre-shutdown.tdump"
+
+    SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
+    wait_to_end
         if [ -n "$PID" ]; then
-            log_progress_msg " killing $PID "
-            kill -9 $PID
+            tdumper "threaddump.1.post-shutdown.tdump"
+            log_progress_msg " forced shutdown (20) "
+            SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" 20 -force  || true
+            tdumper "threaddump.2.post-forced-shutdown.tdump"
+            wait_to_end
+            if [ -n "$PID" ]; then
+                    log_progress_msg " killing $PID "
+                    tdumper "threaddump.3.post-forced-shutdown.tdump"
+                    kill -9 $PID
+                    wait_to_end
+            fi
         fi
-        echo "done."
 }
- 
+
+function daemon_clean() {
+    # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
+
+    # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
+    rm -rf ${JIRA_HOME}/plugins/.bundled-plugins/* \
+    	${JIRA_HOME}/plugins/.osgi-plugins/* \
+	${JIRA_HOME}/tmp/* \
+	${ROOT_DIR}/../work/* \
+	${ROOT_DIR}/../temp/* || echo error
+}
+
 case "$1" in
   start)
-        start
-        ;;
+    log_daemon_msg "Starting $NAME instance" "$NAME"
+    daemon_start
+
+    ;;
   stop)
-        stop
-        ;;
+    log_daemon_msg "Stopping $NAME instance" "$NAME"
+    touch "$HOME/.maintenance"
+    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : $2" $MAILTO <<EOF
+    service $NAME stop
+    Reason: $2
+EOF
+    #enable_maintenance
+    daemon_stop
+    log_end_msg 0
+    ;;
+  clean)
+    # daemon_clean is already part of the daemon_start, but it is here just for covenience
+    daemon_stop
+    daemon_clean
+    ;;
+
+  dump)
+    echo "Creating 5 thread dumps at 20 seconds interval, so you can send them to Atlassian Support, if JIRA goes crazy"
+    tdumper "dump-0.tdump" 20
+    tdumper "dump-1.tdump" 20
+    tdumper "dump-2.tdump" 20
+    tdumper "dump-3.tdump" 20
+    tdumper "dump-4.tdump" 20
+    echo "--- done ---"
+    ;;
+
+  status)
+    get_PID
+    #wait_to_end
+    echo $PID
+    touch "$HOME/.maintenance"
+    while :
+    do
+        response=$(curl -L --write-out %{http_code} --silent --output /dev/null $URL)
+        if [ "$response" -eq "200" ]; then
+            rm "$HOME/.maintenance"
+            break
+        sleep 2
+        echo -n "."
+        fi
+    done
+    echo $response
+
+    ;;
+
   restart)
-        stop
-        start
-        ;;
+    log_daemon_msg "Restarting $NAME instance" "$NAME"
+
+    # if someone stopped service on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
+    # This allows us to restart service using nagios when it stops responding, as long it wasn't stopped on purpose.
+    #if exit_if_maintenance; then
+    #    clean_exit 1
+    #else
+        touch "$HOME/.maintenance"
+        daemon_stop
+        daemon_start
+        echo "run time is $(expr `date +%s` - $start_time)s ... stil it could take few minutes until the service is fully up."
+    #fi
+    ;;
   *)
-        echo "Usage: $0 {start|stop|restart}"
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status|dump}" || true
+    clean_exit 1
+    ;;
 esac
- 
-exit 0
+
+clean_exit 0

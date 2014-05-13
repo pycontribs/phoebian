@@ -20,6 +20,7 @@
 import codecs
 import ctypes
 import datetime
+import fnmatch
 import inspect
 import urllib2
 import json
@@ -288,7 +289,8 @@ class NormalizedVersion(object):
 
     def _parse(self, s, error_on_huge_major_num=True):
         """Parses a string version into parts."""
-        match = VERSION_RE.search(s)
+        #print s, type(s)
+        match = VERSION_RE.search(str(s))
         if not match:
             raise IrrationalVersionError(s)
 
@@ -427,20 +429,22 @@ def suggest_normalized_version(s):
     @returns A rational version string, or None, if couldn't determine one.
     """
     try:
-        NormalizedVersion(s)
-        return s   # already rational
-    except IrrationalVersionError:
+        x = NormalizedVersion(s)
+        if x:
+            return x   # already rational
+    #except IrrationalVersionError:
+    except Exception:
         pass
- 
+    #print(type(s))
     rs = s.lower()
  
     # part of this could use maketrans
     for orig, repl in (('-alpha', 'a'), ('-beta', 'b'), ('alpha', 'a'),
-                       ('beta', 'b'), ('rc', 'c'), ('-final', ''),
+                       ('beta', 'b'), ('-rc', '.0c'), ('-final', ''),
                        ('-pre', 'c'),
                        ('-release', ''), ('.release', ''), ('-stable', ''),
                        ('+', '.'), ('_', '.'), (' ', ''), ('.final', ''),
-                       ('final', '')):
+                       ('final', ''),('-m0','.0a')):
         rs = rs.replace(orig, repl)
  
     # if something ends with dev or pre, we add a 0
@@ -513,6 +517,7 @@ def suggest_normalized_version(s):
     # Tcl/Tk uses "px" for their post release markers
     rs = re.sub(r"p(\d+)$", r".post\1", rs)
  
+    #logging.debug("suggest_normalized => %s" % rs)
     try:
         NormalizedVersion(rs)
         return rs   # already rational
@@ -526,8 +531,9 @@ def suggest_normalized_version(s):
 #print NormalizedVersion('1.2.1-b1')
 
 
-def run(cmd, fatal=True):
-  logging.debug(cmd)
+def run(cmd, fatal=True, silent=False):
+  if not silent:
+      logging.debug(cmd)
   ret = os.system(cmd)
   if ret:
     msg = "Execution of '%s' failed with %s return code." % (cmd,ret)
@@ -537,55 +543,55 @@ def run(cmd, fatal=True):
         logging.error(msg)
   return 0
 
+instances = {}
+# we keep here all detected instances, we detect them by looking at services that do match: crowd* jira* confluence* bamboo*
+
 products = {
   'jira': { 
-    'paths':['/opt/atlassian/jira'], 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties'],
+    'paths':['/opt/atlassian/%(instance)s'], 
+    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties','.eap'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
-    'log': '/logs/catalina.out',
+    'log': 'logs/catalina.out',
     'size': 1300+300,
     'min_version':'4.0',
     'user': 'jira',
     },
  'confluence': {
-    'paths':['/opt/Confluence','/opt/confluence','/opt/atlassian/confluence','/opt/atlassian/Confluence'],
-    'keep': ['confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types','lib/*melody*.jar','confluence/lib/*melody*.jar'],
+    'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
+    'keep': ['bin/user.sh','confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types','lib/*melody*.jar','confluence/lib/*melody*.jar','.eap'],
     'filter_description':'Standalone',
-    'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,-.*,,'",
-    'log':'/logs/catalina.out',
+    'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,- .*,,'",
+    'log':'logs/catalina.out',
     'size':1000,
     'min_version': '4.0',
     'user': 'confluence',
     }, 
   'crowd': {
-    'paths':['/opt/crowd','/opt/atlassian/crowd'],
-    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties'],
+    'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
+    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties','.eap','bin/user.sh'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
-    'log': '/apache-tomcat/logs/catalina.out',
+    'log': 'apache-tomcat/logs/catalina.out',
     'user': 'crowd',
     },
   'bamboo': {
-    'paths':['/opt/atlassian-bamboo','/opt/atlassian/bamboo'],
-    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties','bin/setenv.sh','lib/*melody*.jar'],
+    'paths':['/opt/atlassian/%(instance)s'],
+    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties','bin/setenv.sh','lib/*melody*.jar','.eap','bin/user.sh'],
     'filter_description':'TAR.GZ',
-
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'4.4.5',
-    'log': '/logs/bamboo.log',
+    'log': 'logs/bamboo.log',
     'user': 'bamboo',
     },
 
 }
 
-logging.info("Detecting installed Atlassian instances...")
-#sys.exit()
 
 def get_cmd_output(cmd):
     stdout_handle = os.popen(cmd)
@@ -598,8 +604,6 @@ def get_cmd_output(cmd):
 parser = OptionParser()
 parser.add_option("-y", dest="force", default=False, action="store_true",
                   help="Force updater to do the peform the upgrade.")
-parser.add_option("--eap", dest="feed", default='current', action="store_const", const="eap",
-                  help="Use EAP (beta) feeds instead of releases.")
 parser.add_option("-q", dest="quiet", default=False, action="store_true",help="no output if nothing is wrong, good for cron usage.")
 (options, args) = parser.parse_args()
 
@@ -610,6 +614,9 @@ logging.basicConfig(level=loglevel,
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     datefmt='%Y-%m-%d %H:%M',
                     )
+
+logging.info("Detecting installed Atlassian instances...")
+#sys.exit()
 
 def enable_logging():
     logging.getLogger().setLevel(logging.DEBUG)
@@ -634,17 +641,31 @@ if n != modification_date(__file__):
 
 
 product = None
-for product in products:
-    products[product]['start']='sudo service %s start' % product
-    products[product]['stop']='sudo service %s stop' % product
+
+for p in products:
+    for file in os.listdir('/etc/init.d' ):
+         if fnmatch.fnmatch(file, '%s*' % p):
+             instances[file]=p
+
+print instances
+#sys.exit()
+
+for instance,product in instances.iteritems():
+    logging.info("Checking for %s" % product)
+    products[product]['start']='sudo service %s start' % instance
+    products[product]['stop']='sudo service %s stop' % instance
 
     for path in products[product]['paths']:
+        path = path % {'instance':instance}
         if os.path.exists(path):
             products[product]['path']=path
             break
+
     if 'path' not in products[product]:
         logging.info("`%s` not found..." % product)
         continue
+
+    logging.debug("Analysing %s instance from %s" % (instance,products[product]['path']))
 
     if platform.system() == 'Darwin':
         if not os.path.exists(products[product]['path']):
@@ -663,27 +684,54 @@ for product in products:
     try:
         current_version = NormalizedVersion(current_version)
     except:
-        current_version = NormalizedVersion(suggest_normalized_version(current_version))
+        s = suggest_normalized_version(current_version)
+        if not s:
+            raise NotImplemented()
+        current_version = NormalizedVersion(s)
 
     os.chdir(cwd)
     if not current_version:
         logging.error('Unable to detect the current version of %s' % product)
-        sys.exit(1)
+        continue
     
-    url = "https://my.atlassian.com/download/feeds/%s/%s.json" % (options.feed,product)
-    fp = codecs.getreader("latin-1")(urllib2.urlopen(url))
-    s = fp.read()[10:-1]  # "downloads(...)" is not valid json !!! who was the programmer that coded this?
-    data = json.loads(s)
-    
-    for d in data:
-      if 'Unix' in d['platform'] and 'Cluster' not in d['description'] and products[product]['filter_description'] in d['description']:
-        url = d['zipUrl']
-        try:
-            version = NormalizedVersion(d['version'])
-        except:
-            version = NormalizedVersion(suggest_normalized_version(d['version']))
-        break
-    
+    feeds = ['current']
+
+    if os.path.isfile(os.path.join(products[product]['path'],'.eap')):
+        feeds = ['current','eap']
+
+    version = None
+    url = None
+    for feed in feeds:
+
+        json_url = "https://my.atlassian.com/download/feeds/%s/%s.json" % (feed,product)
+        fp = codecs.getreader("latin-1")(urllib2.urlopen(json_url))
+        s = fp.read()[10:-1]  # "downloads(...)" is not valid json !!! who was the programmer that coded this?
+        data = json.loads(s)
+
+        with open('.%s.%s.json' % (feed,product),'w') as outfile:
+            json.dump(data, outfile, sort_keys = True, indent = 4, ensure_ascii=False)
+
+        for d in data:
+          if 'Unix' in d['platform'] and 'Cluster' not in d['description'] and products[product]['filter_description'] in d['description'] and '-OD' not in d['version']:
+            xx = suggest_normalized_version(d['version'])
+            if not xx:
+                raise NotImplemented()
+            if not version:
+                version = NormalizedVersion(xx)
+                url = d['zipUrl']
+                release_notes = d['releaseNotes']
+            else:
+                new_version = NormalizedVersion(xx)
+                if version < new_version:
+                    logging.debug("Found a newer version %s in '%s' feed, picking it instead of %s." % (new_version,feed,version))
+                    version = new_version
+                    url = d['zipUrl']
+                    release_notes = d['releaseNotes']
+            break
+#    if not url:
+#    print(url, version)
+
+    logging.debug("Compare version %s with %s" % (version, current_version))
     if version <= current_version:
       logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
       continue
@@ -706,10 +754,10 @@ for product in products:
         sys.exit(2)
     
     # sed -u  - not avilable under OS X
-    run('cd %s && wget --timestamp --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % (wrkdir,url))
+    run('cd %s && wget --timestamp --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % (wrkdir,url), silent=True)
     run('cd %s && tar -xzf %s' % (wrkdir,archive))
     
-    old_dir = "%s-%s-old" % (products[product]['path'],current_version)
+    old_dir = "%s-%s-old" % (instance,current_version)
     if os.path.isdir(old_dir) or os.path.isfile(old_dir + '.tar.gz'):
         logging.error("Execution halted because we already found existing old file/dir (%s or %s.tar.gz). This would usually indicate an incomplete upgrade." % (old_dir,old_dir)) 
         sys.exit(1)
@@ -718,30 +766,32 @@ for product in products:
       logging.info("Skipping next steps because you did not call script with -y parameter.")
       continue
 
-    
-    run('service %s stop || echo ignoring stop failure because it could also be already stopped' % product)
+    reason = "Upgrade of %s instance initiated. Check %s" % (instance, release_notes)
+    run('service %s stop "%s"|| echo ignoring stop failure because it could also be already stopped' % (instance, reason))
     run('mv %s %s' % (products[product]['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
     run('useradd -m %s || echo ""' % (products[product]['user']))
-    run('chown -R %s %s || echo "failed chown"' % (products[product]['user'],products[product]['path']))
+    run('chown -R %s:%s %s || echo "failed chown"' % (products[product]['user'],products[product]['user'],products[product]['path']))
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):
             run('mkdir -p "%s"' % os.path.dirname(os.path.join(products[product]['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
-    run('service %s start' % product)
+    run('service %s start' % instance)
+
+    run('pwd && rm %s' % os.path.join(wrkdir,archive))
+
+    # archive old version and keep only the archive
+    run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       cmd = "tail -F %s" % products[product]['log']
+       print(products[product]['path'])
+       print(products[product]['log'])
+       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log'])
        run(cmd)
-
-    run('rm %s' % archive)
-
-    # archive old version and keep only the archive
-    run("tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
     break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 

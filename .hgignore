@@ -1,4 +1,6 @@
 syntax: glob
 *.pyc
 *.csv
+.current*
+.eap*
 tools/packages/jira-python.git
