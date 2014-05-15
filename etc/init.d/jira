@@ -30,13 +30,16 @@ else # this is for OS X where we do not have them, copy the jira to ~/bin
     . ${DIR}/lib/lsb/init-functions
 fi
 
-# TODO: add case for osx
-# shopt -s expand_aliases
-#     alias log_action_msg=echo
-#     alias log_daemon_msg=echo
-#     alias log_progress_msg=echo
-#     alias log_end_msg=echo
+function_exists() {
+    declare -f -F $1 > /dev/null
+        return $?
+        }
 
+shopt -s expand_aliases
+function_exists log_daemon_msg || alias log_daemon_msg=echo
+function_exists log_action_msg || alias log_action_msg=echo
+function_exists log_progress_msg || alias log_progress_msg=echo
+function_exists log_eng_msg || alias log_end_msg=echo
 
 #JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
 # NOTE: Do not rely on any previously configured JAVA_OPTS.
@@ -59,8 +62,8 @@ if [ -f /usr/libexec/java_home ]; then
 export JAVA_HOME=$(/usr/libexec/java_home)
 else
   # detect java location
-  if [ -n "$JAVA_HOME" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+  if [ -z "${JAVA_HOME+zzz}" ] || [ "${JAVA_HOME+xxx}" = "xxx" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java /usr/lib/jvm/default-java /usr/lib/jvm/java-6-sun /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
@@ -68,14 +71,14 @@ else
 fi
 export JAVA_HOME
 
-if [ "${JAVA_HOME}" = "" ] ; then
-  echo "Failed to detect JAVA_HOME location, we cannot proceed."
+if [ "${JAVA_HOME}" = "" ] || [ ! -d "$JAVA_HOME" ] ; then
+  echo "Failed to detect JAVA_HOME location, we cannot proceed ($JAVA_HOME)."
   exit 1
 fi
 
 # detect product location 
 # list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
-for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin  ~/opt/$NAME/bin
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin  ~/opt/$NAME/bin /opt/atlassian/$NAME/apache-tomcat/bin
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
@@ -93,8 +96,9 @@ test -x "${SERVICE_HOME}" || { echo "FATAL: SERVICE_HOME=${SERVICE_HOME} but it 
 
 if [[ $SERVICE_HOME == *confluence* ]]
 then
+    export CONFLUENCE_HOME="${SERVICE_HOME}"
     if [[ ! -f "$CONFLUENCE_HOME/confluence.cfg.xml" ]] ; then 
-        echo "FATAL: Unable to detect confluence home directory."
+        echo "FATAL: Unable to detect confluence home directory. ($CONFLUENCE_HOME)"
         exit 1
     fi
     test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
@@ -102,7 +106,7 @@ then
 
     mkdir -p ${SERVICE_HOME}/logs
     SERVICE_LOG_DIR=logs
-    export CONFLUENCE_HOME="${SERVICE_HOME}"
+    RUN_AS_USER=confluence
 fi
 if [[ $SERVICE_HOME == *jira* ]]
 then
@@ -113,6 +117,7 @@ then
     echo "" > ${ROOT_DIR}/jirabanner.txt
     SERVICE_LOG_DIR=log
     export JIRA_HOME="${SERVICE_HOME}"
+    RUN_AS_USER=jira
 fi
 if [[ $SERVICE_HOME == *crowd* ]]
 then
@@ -227,12 +232,12 @@ function daemon_start() {
     fi
     cat ${OUTPUT}
 
-    if tty -s; then
+    #if tty -s; then
         # do_interactive_stuff
         #
-        echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-        tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    fi
+        #echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
+    #    tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
+    #fi
 
 
 }
@@ -250,7 +255,7 @@ function thread_dump() {
     do
       DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).tdump"
       echo "---" >> ${DUMP}
-      jstack -l $PID >> ${DUMP}
+      sudo -u $RUN_AS_USER jstack -l $PID >> ${DUMP}
       echo "waiting ${delay} seconds..."
       sleep $delay
       let count--
@@ -270,13 +275,13 @@ function tdumper() {
   else
   delay=$2
   fi
-
   get_PID
   if which jstack >/dev/null ; then
       DUMP="${ROOT_DIR}/../logs/$1"
-      echo "---" >> ${DUMP}
+      touch $DUMP
+      chown $RUN_AS_USER:$RUN_AS_USER $DUMP
       echo "dumping ${DUMP}..."
-      jstack -l $PID  >> ${DUMP} || echo "jstack failed"
+      sudo -u $RUN_AS_USER jstack -l $PID  >> ${DUMP} || echo 'jstack failed'
   else
     echo "jstack not found, skipping thread dumping."
   fi
