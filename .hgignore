@@ -4,3 +4,4 @@ syntax: glob
 .current*
 .eap*
 tools/packages/jira-python.git
+*.tar.gz

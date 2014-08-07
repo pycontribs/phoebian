@@ -31,7 +31,7 @@ import sys
 import logging
 from distutils.version import LooseVersion
 from optparse import OptionParser
-
+from tendo import colorer
 
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
@@ -444,9 +444,15 @@ def suggest_normalized_version(s):
                        ('-pre', 'c'),
                        ('-release', ''), ('.release', ''), ('-stable', ''),
                        ('+', '.'), ('_', '.'), (' ', ''), ('.final', ''),
-                       ('final', ''),('-m0','.0a')):
+                       ('final', ''),
+                       ('-m','a'),
+        ):
         rs = rs.replace(orig, repl)
  
+    
+    # remove leading 0 from version number
+    rs = re.sub(r"a0", r"a", rs)
+
     # if something ends with dev or pre, we add a 0
     rs = re.sub(r"pre$", r"pre0", rs)
     rs = re.sub(r"dev$", r"dev0", rs)
@@ -521,8 +527,8 @@ def suggest_normalized_version(s):
     try:
         NormalizedVersion(rs)
         return rs   # already rational
-    except IrrationalVersionError:
-        pass
+    except IrrationalVersionError as e:
+        logging.warning("Got IrrationalVersionError: %s" % e)
     return None
 
 #--- end of import 
@@ -555,16 +561,20 @@ products = {
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
     'log': 'logs/catalina.out',
+    'log2': '/var/atlassian/application-data/%(instance)s/log/atlassian-jira.log',
     'size': 1300+300,
     'min_version':'4.0',
     'user': 'jira',
     },
  'confluence': {
     'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
-    'keep': ['bin/user.sh','confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types','lib/*melody*.jar','confluence/lib/*melody*.jar','.eap'],
+    'keep': ['bin/user.sh','confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties',
+'bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types',
+'lib/*melody*.jar','confluence/lib/*melody*.jar''confluence/WEB-INF/lib/sqljdbc4.jar','.eap'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,- .*,,'",
     'log':'logs/catalina.out',
+    'log2': '/var/atlassian/application-data/%(instance)s/logs/atlassian-confluence.log',
     'size':1000,
     'min_version': '4.0',
     'user': 'confluence',
@@ -605,6 +615,8 @@ parser = OptionParser()
 parser.add_option("-y", dest="force", default=False, action="store_true",
                   help="Force updater to do the peform the upgrade.")
 parser.add_option("-q", dest="quiet", default=False, action="store_true",help="no output if nothing is wrong, good for cron usage.")
+parser.add_option("-p", dest="product", default='*', help="which product to update, by default is * (all)")
+
 (options, args) = parser.parse_args()
 
 loglevel = logging.WARNING
@@ -643,12 +655,12 @@ if n != modification_date(__file__):
 product = None
 
 for p in products:
-    for file in os.listdir('/etc/init.d' ):
-         if fnmatch.fnmatch(file, '%s*' % p):
-             instances[file]=p
+    if options.product == '*' or p == options.product:
+        for file in os.listdir('/etc/init.d' ):
+            if fnmatch.fnmatch(file, '%s*' % p):
+                instances[file]=p
 
-print instances
-#sys.exit()
+logging.info("Detected instances: %s" % instances)
 
 for instance,product in instances.iteritems():
     logging.info("Checking for %s" % product)
@@ -693,10 +705,10 @@ for instance,product in instances.iteritems():
     if not current_version:
         logging.error('Unable to detect the current version of %s' % product)
         continue
-    
-    feeds = ['current']
 
-    if os.path.isfile(os.path.join(products[product]['path'],'.eap')):
+    eap = os.path.isfile(os.path.join(products[product]['path'],'.eap'))
+    feeds = ['current']
+    if eap:
         feeds = ['current','eap']
 
     version = None
@@ -715,7 +727,7 @@ for instance,product in instances.iteritems():
           if 'Unix' in d['platform'] and 'Cluster' not in d['description'] and products[product]['filter_description'] in d['description'] and '-OD' not in d['version']:
             xx = suggest_normalized_version(d['version'])
             if not xx:
-                raise NotImplemented()
+                raise NotImplementedError("Unable to normalize %s" % d['version'])
             if not version:
                 version = NormalizedVersion(xx)
                 url = d['zipUrl']
@@ -742,7 +754,7 @@ for instance,product in instances.iteritems():
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
     
-    logging.debug("Local version of %s is %s and we found version %s at %s" % (product, current_version, version, url))
+    logging.debug("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
@@ -762,9 +774,11 @@ for instance,product in instances.iteritems():
         logging.error("Execution halted because we already found existing old file/dir (%s or %s.tar.gz). This would usually indicate an incomplete upgrade." % (old_dir,old_dir)) 
         sys.exit(1)
 
-    if not options.force:
-      logging.info("Skipping next steps because you did not call script with -y parameter.")
-      continue
+    if not eap:
+      # for eap we upgrade without needing -y parameter
+      if not options.force:
+        logging.info("Skipping next steps because you did not call script with -y parameter.")
+        continue
 
     reason = "Upgrade of %s instance initiated. Check %s" % (instance, release_notes)
     run('service %s stop "%s"|| echo ignoring stop failure because it could also be already stopped' % (instance, reason))
@@ -778,7 +792,7 @@ for instance,product in instances.iteritems():
             run('mkdir -p "%s"' % os.path.dirname(os.path.join(products[product]['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
     
-    run('service %s start' % instance)
+    run('service %s start &' % instance)
 
     run('pwd && rm %s' % os.path.join(wrkdir,archive))
 
@@ -788,9 +802,10 @@ for instance,product in instances.iteritems():
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       print(products[product]['path'])
-       print(products[product]['log'])
        cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log'])
+       if 'log2' in products[product]:
+           cmd += " -F %s" % products[product]['log2']
+       logging.debug(cmd)
        run(cmd)
 
     break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
