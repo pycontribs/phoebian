@@ -154,7 +154,7 @@ clean_exit() {
   zero=0
   if [ $1 -ne $zero ]; then
     # we display the output only in case of error
-    cat ${OUTPUT}
+    cat ${OUTPUT} || echo error
   fi
   rm -f ${OUTPUT} || echo error
   exit $1

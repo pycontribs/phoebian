@@ -802,7 +802,7 @@ for instance,product in instances.iteritems():
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log'])
+       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log']) % { 'instance': instance }
        if 'log2' in products[product]:
            cmd += " -F %s" % products[product]['log2']
        logging.debug(cmd)
