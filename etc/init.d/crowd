@@ -228,7 +228,7 @@ function daemon_start() {
         log_end_msg 1
       fi
     fi
-    cat ${OUTPUT}
+    cat ${OUTPUT} || echo error
 
     if tty -s; then
         # do_interactive_stuff
