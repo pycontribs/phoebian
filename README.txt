@@ -46,3 +46,11 @@ PORTS : trying to use the default ones, as long they do not overlap.
 8095 - crowd
 8096 - crowd JMX/RMI
 8020 - crowd tomcat shutdown
+
+
+
+Maturity
+========
+
+This scrip is used in production, with at least 4 hosting servers since 2013. It is not perfect but makes administration tasks much easier and faster, minimising the downtimes.
+
