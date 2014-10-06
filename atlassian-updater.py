@@ -556,7 +556,10 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/%(instance)s'], 
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*','lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties','.eap'],
+    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*',
+    'lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties',
+    'lib/newrelic-api.jar', 'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
+    '.eap'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -802,7 +805,8 @@ for instance,product in instances.iteritems():
     if os.isatty(sys.stdout.fileno()):
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log']) % { 'instance': instance }
+       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log']) 
+       cmd = cmd.format({ 'instance': instance })
        if 'log2' in products[product]:
            cmd += " -F %s" % products[product]['log2']
        logging.debug(cmd)
