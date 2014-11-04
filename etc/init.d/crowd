@@ -63,7 +63,7 @@ export JAVA_HOME=$(/usr/libexec/java_home)
 else
   # detect java location
   if [ -z "${JAVA_HOME+zzz}" ] || [ "${JAVA_HOME+xxx}" = "xxx" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java /usr/lib/jvm/default-java /usr/lib/jvm/java-6-sun /System/Library/Frameworks/JavaVM.framework/Home/
+    for JAVA_HOME in /usr/lib/jvm/java-8-oracle  /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java /usr/lib/jvm/default-java /usr/lib/jvm/java-6-sun /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done
@@ -82,10 +82,6 @@ for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin  ~/opt/$NAME/bin /opt/at
 do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
-#if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
-#  echo "FATAL: Unable to detect confluence install directory."
-#  exit 1
-#fi
 
 # TODO: replace HOME detection with reading from config files of the services
 for SERVICE_HOME in  /var/atlassian/application-data/$NAME ~/var/local/$NAME /var/local/$NAME
@@ -124,7 +120,8 @@ then
 
     SERVICE_LOG_DIR=log
     RUN_AS_USER=crowd
-    export CATALINA_HOME="${SERVICE_HOME}"
+    #export CATALINA_HOME="${SERVICE_HOME}"
+    #echo CATALINA_HOME="${SERVICE_HOME}"
 fi
 
 echo ${SERVICE_HOME}
@@ -228,14 +225,26 @@ function daemon_start() {
         log_end_msg 1
       fi
     fi
+
+    if [[ $NAME == *crowd* ]] ; then
+      # it fails if not right dir
+      cd "${ROOT_DIR}"
+      if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+        log_end_msg 0
+      else
+        log_end_msg 1
+      fi
+    fi
+
+
     cat ${OUTPUT} || echo error
 
-    if tty -s; then
+    #if tty -s; then
         # do_interactive_stuff
         #
-        echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-        tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    fi
+    #    echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
+    #    tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
+    #fi
 
 
 }
@@ -292,6 +301,8 @@ function daemon_stop() {
     # this one is very usefull 
     tdumper "threaddump.0.pre-shutdown.tdump"
 
+    # crowd seems to fail if run from different directories
+    cd "${ROOT_DIR}"
     SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
     wait_to_end
         if [ -n "$PID" ]; then

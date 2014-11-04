@@ -558,6 +558,7 @@ products = {
     'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
     'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*',
     'lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties',
+    'atlassian-jira/WEB-INF/classes/jpm.xml',
     'lib/newrelic-api.jar', 'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
     '.eap'],
     'filter_description':'TAR.GZ',
