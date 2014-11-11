@@ -33,6 +33,10 @@ from distutils.version import LooseVersion
 from optparse import OptionParser
 from tendo import colorer
 
+# trick for py2/3 compatibility
+if 'basestring' not in globals():
+   basestring = str
+
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
 FINAL_MARKER = ('f',)
@@ -564,8 +568,7 @@ products = {
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
-    'log': 'logs/catalina.out',
-    'log2': '/var/atlassian/application-data/%(instance)s/log/atlassian-jira.log',
+    'log': ['%(path)s/logs/catalina.out', '/var/atlassian/application-data/%(instance)s/log/atlassian-jira.log'],
     'size': 1300+300,
     'min_version':'4.0',
     'user': 'jira',
@@ -577,8 +580,7 @@ products = {
 'lib/*melody*.jar','confluence/lib/*melody*.jar''confluence/WEB-INF/lib/sqljdbc4.jar','.eap'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,- .*,,'",
-    'log':'logs/catalina.out',
-    'log2': '/var/atlassian/application-data/%(instance)s/logs/atlassian-confluence.log',
+    'log': ['%(path)s/logs/catalina.out', '/var/atlassian/application-data/%(instance)s/logs/atlassian-confluence.log'],
     'size':1000,
     'min_version': '4.0',
     'user': 'confluence',
@@ -590,7 +592,7 @@ products = {
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
-    'log': 'apache-tomcat/logs/catalina.out',
+    'log': '%(path)s/apache-tomcat/logs/catalina.out',
     'user': 'crowd',
     },
   'bamboo': {
@@ -600,7 +602,7 @@ products = {
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'4.4.5',
-    'log': 'logs/bamboo.log',
+    'log': '%(path)s/logs/bamboo.log',
     'user': 'bamboo',
     },
 
@@ -671,15 +673,34 @@ for instance,product in instances.iteritems():
     products[product]['start']='sudo service %s start' % instance
     products[product]['stop']='sudo service %s stop' % instance
 
-    for path in products[product]['paths']:
-        path = path % {'instance':instance}
-        if os.path.exists(path):
-            products[product]['path']=path
-            break
+
+    # expand variables in config, keep paths the first as it can be used to expand the others
+    if 'path' not in products[product]:
+        products[product]['path']=""
+
+    for var in ['paths', 'log']:
+        if var in products[product]:
+
+            # upgrading the string to a list, so we can use both in config
+            if isinstance(products[product][var], basestring):
+                products[product][var] = [products[product][var]]
+            for idx, elem in enumerate(products[product][var]):
+                elem = elem % {'instance':instance, 'path': products[product]['path']}
+                if os.path.exists(elem):
+                    products[product][var][idx]=elem
+                #else:
+                #    raise Exception("WTF %s" % elem)
+            if var == 'paths':
+                # detecting installation location
+                for path in products[product]['paths']:
+                    if os.path.exists(path):
+                        products[product]['path']=path
+                        break
 
     if 'path' not in products[product]:
         logging.info("`%s` not found..." % product)
         continue
+
 
     logging.debug("Analysing %s instance from %s" % (instance,products[product]['path']))
 
@@ -803,13 +824,11 @@ for instance,product in instances.iteritems():
     # archive old version and keep only the archive
     run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
-    if os.isatty(sys.stdout.fileno()):
+    if os.isatty(sys.stdout.fileno()) and 'log' in products['product']:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
-       # run("sh -c 'tail -n +0 --pid=$$ -f %s | { sed \"/org\.apache\.catalina\.startup\.Catalina start/ q\" && kill $$ ;}'" % products[product]['log'])
-       cmd = "tail -F %s" % os.path.join(products[product]['path'],products[product]['log']) 
-       cmd = cmd.format({ 'instance': instance })
-       if 'log2' in products[product]:
-           cmd += " -F %s" % products[product]['log2']
+       cmd = "tail -F "
+       for elem in products[product]['log']:
+           cmd += " -F %s" % elem
        logging.debug(cmd)
        run(cmd)
 
