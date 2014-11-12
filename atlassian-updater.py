@@ -625,7 +625,7 @@ parser.add_option("-p", dest="product", default='*', help="which product to upda
 
 (options, args) = parser.parse_args()
 
-loglevel = logging.WARNING
+loglevel = logging.INFO
 if not options.quiet:
    loglevel = logging.DEBUG
 logging.basicConfig(level=loglevel,
@@ -633,11 +633,12 @@ logging.basicConfig(level=loglevel,
                     datefmt='%Y-%m-%d %H:%M',
                     )
 
-logging.info("Detecting installed Atlassian instances...")
+logging.debug("Detecting installed Atlassian instances...")
 #sys.exit()
 
 def enable_logging():
-    logging.getLogger().setLevel(logging.DEBUG)
+    #logging.getLogger().setLevel(logging.DEBUG)
+    return
 
 
 # --- smart auto-update code which is supposed to get latest version from the repo and recall the script if needed
@@ -666,10 +667,10 @@ for p in products:
             if fnmatch.fnmatch(file, '%s*' % p):
                 instances[file]=p
 
-logging.info("Detected instances: %s" % instances)
+logging.debug("Detected instances: %s" % instances)
 
 for instance,product in instances.iteritems():
-    logging.info("Checking for %s" % product)
+    logging.debug("Checking for %s" % product)
     products[product]['start']='sudo service %s start' % instance
     products[product]['stop']='sudo service %s stop' % instance
 
@@ -779,7 +780,7 @@ for instance,product in instances.iteritems():
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
     
-    logging.debug("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
+    logging.info("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
@@ -837,4 +838,4 @@ for instance,product in instances.iteritems():
 if not product:
    logging.error('No product to be upgraded was found!')
 else:
-   logging.info("Done")
+   logging.debug("Done")
