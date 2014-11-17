@@ -830,10 +830,10 @@ for instance,product in instances.iteritems():
     # archive old version and keep only the archive
     run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
-    if os.isatty(sys.stdout.fileno()) and 'log' in products['product']:
+    if os.isatty(sys.stdout.fileno()) and 'log' in products[product]:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        cmd = "tail -F "
-       for elem in products['product']['log']:
+       for elem in products[product]['log']:
            cmd += " -F %s" % elem
        logging.debug(cmd)
        run(cmd)
