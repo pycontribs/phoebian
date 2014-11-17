@@ -559,7 +559,11 @@ instances = {}
 products = {
   'jira': { 
     'paths':['/opt/atlassian/%(instance)s'], 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml','conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh','atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml',
+    'conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh',
+    'atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'atlassian-jira/WEB-INF/classes/crowd.properties',
+    'atlassian-jira/WEB-INF/classes/seraph-config.xml',
     'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*',
     'lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties',
     'atlassian-jira/WEB-INF/classes/jpm.xml',
@@ -828,7 +832,7 @@ for instance,product in instances.iteritems():
     if os.isatty(sys.stdout.fileno()) and 'log' in products['product']:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        cmd = "tail -F "
-       for elem in products[product]['log']:
+       for elem in products['product']['log']:
            cmd += " -F %s" % elem
        logging.debug(cmd)
        run(cmd)
