@@ -559,15 +559,29 @@ instances = {}
 products = {
   'jira': { 
     'paths':['/opt/atlassian/%(instance)s'], 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml',
-    'conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh',
-    'atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'keep': [
+    'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 
+    'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
+    'atlassian-jira/secure/admin/custom/findattachments.jsp',
+    'atlassian-jira/WEB-INF/cgi/*',
     'atlassian-jira/WEB-INF/classes/crowd.properties',
-    'atlassian-jira/WEB-INF/classes/seraph-config.xml',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*',
-    'lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties',
+    'atlassian-jira/WEB-INF/classes/jira-application.properties',
     'atlassian-jira/WEB-INF/classes/jpm.xml',
-    'lib/newrelic-api.jar', 'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
+    'atlassian-jira/WEB-INF/classes/log4j.properties',
+    'atlassian-jira/WEB-INF/classes/seraph-config.xml',
+    'bin/setenv.sh',
+    'bin/user.sh',
+    'conf/catalina.properties',
+    'conf/context.xml',
+    'conf/logging.properties',
+    'conf/server.xml',
+    'conf/web.xml',
+    'lib/activation*',
+    'lib/apache-log4j-extras*',
+    'lib/jira-javamelody*',
+    'lib/klogger*',
+    'lib/mail*',
+    'lib/newrelic-api.jar', 
     '.eap'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
@@ -593,7 +607,7 @@ products = {
     'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
     'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties','.eap','bin/user.sh'],
     'filter_description':'TAR.GZ',
-    'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-[0-9]* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
+    'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
     'log': '%(path)s/apache-tomcat/logs/catalina.out',
@@ -629,7 +643,7 @@ parser.add_option("-p", dest="product", default='*', help="which product to upda
 
 (options, args) = parser.parse_args()
 
-loglevel = logging.INFO
+loglevel = logging.WARNING
 if not options.quiet:
    loglevel = logging.DEBUG
 logging.basicConfig(level=loglevel,
@@ -637,12 +651,11 @@ logging.basicConfig(level=loglevel,
                     datefmt='%Y-%m-%d %H:%M',
                     )
 
-logging.debug("Detecting installed Atlassian instances...")
+logging.info("Detecting installed Atlassian instances...")
 #sys.exit()
 
 def enable_logging():
-    #logging.getLogger().setLevel(logging.DEBUG)
-    return
+    logging.getLogger().setLevel(logging.DEBUG)
 
 
 # --- smart auto-update code which is supposed to get latest version from the repo and recall the script if needed
@@ -671,10 +684,10 @@ for p in products:
             if fnmatch.fnmatch(file, '%s*' % p):
                 instances[file]=p
 
-logging.debug("Detected instances: %s" % instances)
+logging.info("Detected instances: %s" % instances)
 
 for instance,product in instances.iteritems():
-    logging.debug("Checking for %s" % product)
+    logging.info("Checking for %s" % product)
     products[product]['start']='sudo service %s start' % instance
     products[product]['stop']='sudo service %s stop' % instance
 
@@ -728,7 +741,6 @@ for instance,product in instances.iteritems():
     except:
         s = suggest_normalized_version(current_version)
         if not s:
-            logging.error("unable to suggest_normalized_version(%s)" % current_version)
             raise NotImplemented()
         current_version = NormalizedVersion(s)
 
@@ -785,7 +797,7 @@ for instance,product in instances.iteritems():
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
     
-    logging.info("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
+    logging.debug("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
@@ -830,10 +842,10 @@ for instance,product in instances.iteritems():
     # archive old version and keep only the archive
     run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
-    if os.isatty(sys.stdout.fileno()) and 'log' in products['product']:
+    if os.isatty(sys.stdout.fileno()) and 'log' in products[product]:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        cmd = "tail -F "
-       for elem in products['product']['log']:
+       for elem in products[product]['log']:
            cmd += " -F %s" % elem
        logging.debug(cmd)
        run(cmd)
@@ -843,4 +855,4 @@ for instance,product in instances.iteritems():
 if not product:
    logging.error('No product to be upgraded was found!')
 else:
-   logging.debug("Done")
+   logging.info("Done")
