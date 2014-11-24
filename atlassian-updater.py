@@ -629,7 +629,11 @@ parser.add_option("-p", dest="product", default='*', help="which product to upda
 
 (options, args) = parser.parse_args()
 
-loglevel = logging.INFO
+if sys.stdout.isatty():
+    loglevel = logging.INFO
+else:
+    loglevel = logging.WARN
+
 if not options.quiet:
    loglevel = logging.DEBUG
 logging.basicConfig(level=loglevel,
