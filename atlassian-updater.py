@@ -788,8 +788,7 @@ for instance,product in instances.iteritems():
     #if current_version < LooseVersion(products[product]['min_version']):
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
-    
-    logging.info("Local version of %s is %s and we found version %s at %s (eap=%s)" % (product, current_version, version, url, eap))
+    logging.info("Local version of %s is %s and we found version %s (eap=%s). Release notes: %s" % (product, current_version, version, eap, release_notes))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
@@ -801,7 +800,8 @@ for instance,product in instances.iteritems():
         sys.exit(2)
     
     # sed -u  - not avilable under OS X
-    run('cd %s && wget --timestamp --continue --progress=dot %s 2>&1 | grep --line-buffered "%%" | sed -e "s,\\.,,g" | awk \'{printf("\\b\\b\\b\\b%%4s", $2)}\' && printf "\\r"' % (wrkdir,url), silent=True)
+    x = run('cd %s && wget -q --timestamp --continue %s 2>&1' % (wrkdir,url), silent=True)
+    print(x)
     run('cd %s && tar -xzf %s' % (wrkdir,archive))
     
     old_dir = "%s-%s-old" % (instance,current_version)
