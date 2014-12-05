@@ -29,6 +29,7 @@ import platform
 import re
 import sys
 import logging
+from collections import OrderedDict
 from distutils.version import LooseVersion
 from optparse import OptionParser
 from tendo import colorer
@@ -559,15 +560,29 @@ instances = {}
 products = {
   'jira': { 
     'paths':['/opt/atlassian/%(instance)s'], 
-    'keep': ['conf/server.xml','conf/web.xml','conf/context.xml',
-    'conf/catalina.properties','conf/logging.properties','bin/setenv.sh','bin/user.sh',
-    'atlassian-jira/WEB-INF/classes/jira-application.properties',
+    'keep': [
+    'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 
+    'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
+    'atlassian-jira/secure/admin/custom/findattachments.jsp',
+    'atlassian-jira/WEB-INF/cgi/*',
     'atlassian-jira/WEB-INF/classes/crowd.properties',
-    'atlassian-jira/WEB-INF/classes/seraph-config.xml',
-    'atlassian-jira/secure/admin/custom/findattachments.jsp','lib/apache-log4j-extras*','atlassian-jira/WEB-INF/cgi/*',
-    'lib/jira-javamelody*','lib/activation*','lib/mail*','atlassian-jira/WEB-INF/classes/log4j.properties',
+    'atlassian-jira/WEB-INF/classes/jira-application.properties',
     'atlassian-jira/WEB-INF/classes/jpm.xml',
-    'lib/newrelic-api.jar', 'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
+    'atlassian-jira/WEB-INF/classes/log4j.properties',
+    'atlassian-jira/WEB-INF/classes/seraph-config.xml',
+    'bin/setenv.sh',
+    'bin/user.sh',
+    'conf/catalina.properties',
+    'conf/context.xml',
+    'conf/logging.properties',
+'conf/server.xml',
+    'conf/web.xml',
+    'lib/activation*',
+    'lib/apache-log4j-extras*',
+    'lib/jira-javamelody*',
+    'lib/mail*',
+    'lib/newrelic-api.jar', 
+
     '.eap'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
@@ -596,7 +611,7 @@ products = {
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-[0-9]* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
-    'log': '%(path)s/apache-tomcat/logs/catalina.out',
+    'log': ['%(path)s/apache-tomcat/logs/catalina.out'],
     'user': 'crowd',
     },
   'bamboo': {
@@ -606,7 +621,7 @@ products = {
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'4.4.5',
-    'log': '%(path)s/logs/bamboo.log',
+    'log': ['%(path)s/logs/bamboo.log'],
     'user': 'bamboo',
     },
 
@@ -668,64 +683,53 @@ if n != modification_date(__file__):
 
 
 product = None
+instances = OrderedDict()
+
 
 for p in products:
     if options.product == '*' or p == options.product:
         for file in os.listdir('/etc/init.d' ):
             if fnmatch.fnmatch(file, '%s*' % p):
-                instances[file]=p
+                instances[file]={"product":p}
 
 logging.debug("Detected instances: %s" % instances)
 
-for instance,product in instances.iteritems():
-    logging.debug("Checking for %s" % product)
-    products[product]['start']='sudo service %s start' % instance
-    products[product]['stop']='sudo service %s stop' % instance
+for instance,instance_dic in instances.iteritems():
+    product = instance_dic['product']
+    logging.debug("Checking %s ..." % instance)
+    instance_dic['start']='sudo service %s start' % instance
+    instance_dic['stop']='sudo service %s stop' % instance
 
+    for path in products[product]['paths']:
+        path = path % {'instance':instance}
+        if os.path.exists(path):
+            instances[instance]['path'] = path
+            break
+    if 'path' not in instances[instance]:
+        print("Unable to find path of %s" % var)
+        sys.exit(1)
 
-    # expand variables in config, keep paths the first as it can be used to expand the others
-    if 'path' not in products[product]:
-        products[product]['path']=""
+    for path in products[product]['log']:
+        path = path % {'instance':instance, 'path': instance_dic['path']}
+        if os.path.exists(path):
+            instances[instance]['log'] = path
+            break
 
-    for var in ['paths', 'log']:
-        if var in products[product]:
-
-            # upgrading the string to a list, so we can use both in config
-            if isinstance(products[product][var], basestring):
-                products[product][var] = [products[product][var]]
-            for idx, elem in enumerate(products[product][var]):
-                elem = elem % {'instance':instance, 'path': products[product]['path']}
-                if os.path.exists(elem):
-                    products[product][var][idx]=elem
-                #else:
-                #    raise Exception("WTF %s" % elem)
-            if var == 'paths':
-                # detecting installation location
-                for path in products[product]['paths']:
-                    if os.path.exists(path):
-                        products[product]['path']=path
-                        break
-
-    if 'path' not in products[product]:
-        logging.info("`%s` not found..." % product)
-        continue
-
-
-    logging.debug("Analysing %s instance from %s" % (instance,products[product]['path']))
+    logging.debug("Analysing %s instance from %s" % (instance,instances[instance]['path']))
 
     if platform.system() == 'Darwin':
         if not os.path.exists(products[product]['path']):
             logging.info("`%s` not found..." % product)
             continue
-        products[product]['start']=products[product]['path']+'bin/start-%s.sh' % product
-        products[product]['stop']=products[product]['path']+'bin/stop-%s.sh' % product
+        instances[instance]['start']=products[product]['path']+'bin/start-%s.sh' % product
+        instances[instance]['stop']=products[product]['path']+'bin/stop-%s.sh' % product
 
-    elif not os.path.isfile('/etc/init.d/%s' % product) or not os.path.exists(products[product]['path']):
+    elif not os.path.isfile('/etc/init.d/%s' % product) or not os.path.exists(instance_dic['path']):
         logging.info("`%s` not found..." % product)
         continue
  
     cwd = os.getcwd()
-    os.chdir(products[product]['path'])
+    os.chdir(instances[instance]['path'])
     current_version = get_cmd_output(products[product]['version']).rstrip('-')
     try:
         current_version = NormalizedVersion(current_version)
@@ -741,7 +745,9 @@ for instance,product in instances.iteritems():
         logging.error('Unable to detect the current version of %s' % product)
         continue
 
-    eap = os.path.isfile(os.path.join(products[product]['path'],'.eap'))
+    eap = os.path.isfile(os.path.join(instances[instance]['path'],'.eap'))
+    logging.info('%s has EAP=%s' % (instance, eap))
+
     feeds = ['current']
     if eap:
         feeds = ['current','eap']
@@ -778,7 +784,7 @@ for instance,product in instances.iteritems():
 #    if not url:
 #    print(url, version)
 
-    logging.debug("Compare version %s with %s" % (version, current_version))
+    logging.debug("%s: Compare version %s with %s" % (instance, version, current_version))
     if version <= current_version:
       logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
       continue
@@ -788,12 +794,12 @@ for instance,product in instances.iteritems():
     #if current_version < LooseVersion(products[product]['min_version']):
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
-    logging.info("Local version of %s is %s and we found version %s (eap=%s). Release notes: %s" % (product, current_version, version, eap, release_notes))
+    logging.info("%s: Local version of %s is %s and we found version %s (eap=%s). Release notes: %s" % (instance, product, current_version, version, eap, release_notes))
     archive = url.split('/')[-1]
     dirname = re.sub('\.tar\.gz','',archive)
     if product == 'jira': dirname += '-standalone'
     
-    wrkdir = os.path.normpath(os.path.join(products[product]['path'],'..'))
+    wrkdir = os.path.normpath(os.path.join(instance_dic['path'],'..'))
     freespace = get_free_space_mb(wrkdir)
     if freespace < products[product]['size']:
         logging.error("Freespace on %s is %s MB but we need at least %s MB free. Fix the problem and try again." % (wrkdir,freespace,products[product]['size']))
@@ -801,7 +807,7 @@ for instance,product in instances.iteritems():
     
     # sed -u  - not avilable under OS X
     x = run('cd %s && wget -q --timestamp --continue %s 2>&1' % (wrkdir,url), silent=True)
-    print(x)
+    #print(x)
     run('cd %s && tar -xzf %s' % (wrkdir,archive))
     
     old_dir = "%s-%s-old" % (instance,current_version)
@@ -817,15 +823,15 @@ for instance,product in instances.iteritems():
 
     reason = "Upgrade of %s instance initiated. Check %s" % (instance, release_notes)
     run('service %s stop "%s"|| echo ignoring stop failure because it could also be already stopped' % (instance, reason))
-    run('mv %s %s' % (products[product]['path'],old_dir))
-    run('mv %s/%s %s' % (wrkdir,dirname,products[product]['path']))
+    run('mv %s %s' % (instance_dic['path'],old_dir))
+    run('mv %s/%s %s' % (wrkdir,dirname,instance_dic['path']))
     run('useradd -m %s || echo ""' % (products[product]['user']))
-    run('chown -R %s:%s %s || echo "failed chown"' % (products[product]['user'],products[product]['user'],products[product]['path']))
+    run('chown -R %s:%s %s || echo "failed chown"' % (products[product]['user'],products[product]['user'],instance_dic['path']))
     
     for f in products[product]['keep']:
         if os.path.exists(os.path.join(old_dir,f)):
-            run('mkdir -p "%s"' % os.path.dirname(os.path.join(products[product]['path'],f)))
-            run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,products[product]['path'],f))
+            run('mkdir -p "%s"' % os.path.dirname(os.path.join(instance_dic['path'],f)))
+            run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,instance_dic['path'],f))
     
     run('service %s start &' % instance)
 
@@ -834,15 +840,17 @@ for instance,product in instances.iteritems():
     # archive old version and keep only the archive
     run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
-    if os.isatty(sys.stdout.fileno()) and 'log' in products[product]:
+    if os.isatty(sys.stdout.fileno()) and 'log' in instance_dic:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
        cmd = "tail -F "
-       for elem in products[product]['log']:
+       for elem in instance_dic['log']:
            cmd += " -F %s" % elem
        logging.debug(cmd)
        run(cmd)
 
     break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
+
+print(instances)
 
 if not product:
    logging.error('No product to be upgraded was found!')

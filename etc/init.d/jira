@@ -329,11 +329,10 @@ case "$1" in
 
     ;;
   stop)
-    log_daemon_msg "Stopping $NAME instance" "$NAME"
+    log_daemon_msg "Stopping $NAME instance [${@:2}]" "$NAME"
     touch "$HOME/.maintenance"
-    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : $2" $MAILTO <<EOF
+    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : ${@:2}" $MAILTO <<EOF
     service $NAME stop
-    Reason: $2
 EOF
     #enable_maintenance
     daemon_stop
