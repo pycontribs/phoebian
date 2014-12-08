@@ -1,0 +1,282 @@
+#! /bin/bash
+
+### BEGIN INIT INFO
+# Provides:        jira
+# Required-Start:    $remote_fs $network $ssh
+# Required-Stop:    $remote_fs $network $ssh
+# Default-Start:    3 4 5
+# Default-Stop:        1 2
+# Short-Description:    Jira
+### END INIT INFO
+
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
+#    JAVA_OPTS="$JAVA_OPTS -Xloggc:/var/local/confluence/logs/$GC_LOG -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+HeapDumpOnOutOfMemoryError"
+#    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1101"
+NAME=jira
+STAMP=`date -u +"%Y%m%d-%H%M%S"`
+
+set -e
+
+if [ -f "/lib/lsb/init-functions" ]; then
+    . /lib/lsb/init-functions
+else # this is for OS X where we do not have them, copy the jira to ~/bin
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    . ${DIR}/lib/lsb/init-functions
+fi
+
+
+#JAVA_OPTS="$JAVA_OPTS -XX:OnOutOfMemoryError=\"kill -9 %p\" "
+# NOTE: Do not rely on any previously configured JAVA_OPTS.
+export JAVA_OPTS=""
+start_time=`date +%s`
+
+function moveallto() {
+    local DESTDIR=${1}
+    mkdir -p ${DESTDIR}
+    find . -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
+}
+
+
+
+TIMEOUT=30
+OUTPUT=$(mktemp)
+# number of seconds to wait before forcing a stop command
+
+# set -e
+
+if [ -f /usr/libexec/java_home ]; then
+export JAVA_HOME=$(/usr/libexec/java_home)
+else
+  # detect java location
+  if [ -n "$JAVA_HOME" ]; then
+    for JAVA_HOME in /usr/lib/jvm/java-6-sun /usr/lib/jvm/default-java /System/Library/Frameworks/JavaVM.framework/Home/
+    do
+        if [ -d "$JAVA_HOME" ]; then break ; fi
+    done
+  fi
+  export JAVA_HOME
+fi
+
+# detect product location 
+# list of possible locations of confluence, newer versions do have priority, if you have another location just overwrite this or make a symlink 
+for ROOT_DIR in /opt/atlassian/$NAME/bin /opt/$NAME/bin /opt/Jira/bin ~/opt/jira/bin
+do
+    if [ -d "$ROOT_DIR" ]; then break ; fi
+	done
+
+for JIRA_HOME in ~/var/local/jira /var/local/jira /var/atlassian/application-data/jira
+do
+    if [ -d "$JIRA_HOME" ]; then break ; fi
+done
+export JIRA_HOME
+
+test -x "${ROOT_DIR}/startup.sh" || { echo "Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
+test -x "${ROOT_DIR}/shutdown.sh" || { echo "Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
+test -x "${JIRA_HOME}" || { echo "JIRA_HOME=${JIRA_HOME} but it doesn't exist." ; exit 1; }
+
+echo ${JIRA_HOME}
+
+# empty jira ugly banner
+echo "" > ${ROOT_DIR}/jirabanner.txt
+
+# read the address where the service is supposed to respond
+PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
+SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
+PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
+
+if [[ -z "$PROXYNAME" ]] ; then PROXYNAME=localhost ; fi
+if [[ -z "$SCHEME" ]] ; then SCHEME=http ; fi
+if [[ -z "$PROXYPORT" ]] ; then PROXYPORT=80 ; fi
+
+URL=${SCHEME}://${PROXYNAME}:${PROXYPORT}
+
+# creating the output file
+echo "Supposed to run on port $PORT and be accesible using $URL" >${OUTPUT}
+
+if test -f /etc/default/$NAME; then
+    . /etc/default/$NAME
+fi
+
+clean_exit() {
+  zero=0
+  if [ $1 -ne $zero ]; then
+    # we display the output only in case of error
+    cat ${OUTPUT}
+  fi
+  rm -f ${OUTPUT}
+  exit $1
+}
+
+function exit_if_maintenance() {
+  if [ -f "${ROOT_DIR}/../.maintenance" ]; then
+    log_progress_msg "Doing nothing as the systems seems to be in maintenance mode."
+    log_end_msg 1
+    return 1
+  fi
+  return 0
+}
+
+function enable_maintenance() {
+  touch "${ROOT_DIR}/../.maintenance"
+  log_progress_msg " (enable maintenance mode for $URL) "
+
+  ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "ln -s -f /etc/nginx/www/maintenance.html /etc/nginx/www/$PROXYNAME-maintenance.html || hostname" || echo "(failed)"
+
+}
+
+function disable_maintenance() {
+  if [ -f "${ROOT_DIR}/../.maintenance" ]; then
+    rm -f "${ROOT_DIR}/../.maintenance"
+    log_progress_msg " (disable maintenance mode for $URL) "
+
+    #if tty -s; then
+        # do_interactive_stuff
+        #
+        #( tail -q -F ${JIRA_HOME}/../log/atlassian-jira.log 2>/dev/null & ( (tail -q -F ${JIRA_HOME}/../log/atlassian-jira.log 2>/dev/null | grep -l 'You can now access JIRA through your web browser' && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 ) & sleep 900 && kill -9 `pstree -pa $$ | grep -E '\-(tail|sleep),' | sed 's/^[^0-9]*\([0-9]*\).*/\1/' | grep -vw $$ | xargs` >/dev/null 2>&1 && exit 3 ) ) ; [ $? -eq 3 ]  && echo 'server not up after 5 min'  || echo 'server up'
+    #fi
+
+    #sleep 2
+    ssh -q -a -t $PROXYNAME -o BatchMode=yes -o StrictHostKeyChecking=no -f "rm -f /etc/nginx/www/$PROXYNAME-maintenance.html " || echo "(failed)"
+  fi
+
+}
+
+function get_PID() {
+    PID=`ps -A -o pid,command |grep java|grep "$ROOT_DIR"|awk '{print $1}'`
+}
+
+function wait_to_end() {
+            get_PID
+            echo PID=${PID}
+            t=$TIMEOUT
+            while [ "$t" -gt "0" ] && [ -n "$PID" ]; do
+                echo -n "."
+                sleep 1
+                get_PID
+                t=$(( t - 1 ))
+            done
+            get_PID
+}
+
+function thread_dump() {
+  get_PID
+  count=5
+  delay=0.5
+
+  if which jstack >/dev/null ; then
+
+    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
+    while [ $count -gt 0 ]
+    do
+      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).txt"
+      echo "---" >> ${DUMP}
+      jstack -l $PID >> ${DUMP}
+      sleep $delay
+      let count--
+      echo -n "."
+    done
+
+  else
+    echo "jstack not found, skipping thread dumping."
+  fi
+}
+
+function daemon_start() {
+        # rotating the logs, so we get an empty set for each restart
+        pushd "$(pwd)" >> /dev/null
+        cd $ROOT_DIR/../logs
+        moveallto $STAMP
+        popd >> /dev/null
+
+        daemon_clean
+        
+        # rotating the logs, so we get an empty set for each restart
+        pushd "$(pwd)" >> /dev/null
+        cd $JIRA_HOME/log
+        moveallto $STAMP
+        popd >> /dev/null
+
+        sudo mkdir -p $JIRA_HOME/import/attachments
+        sudo mkdir -p $JIRA_HOME/import/mail
+        sudo mkdir -p $JIRA_HOME/caches/indexes/entities/portalpage
+
+    if "${ROOT_DIR}/startup.sh" 2>&1 >>${OUTPUT} ; then
+        log_end_msg 0
+    else
+        log_end_msg 1
+    fi
+    cat ${OUTPUT}
+}
+
+function daemon_stop() {
+    log_progress_msg " shutdown.sh "
+    SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
+    # 2>&1 >>${OUTPUT} || true
+    wait_to_end
+        if [ -n "$PID" ]; then
+            log_progress_msg " forcing "
+            thread_dump
+            SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" 20 -force  || true
+            # 2>&1 >>${OUTPUT}
+            wait_to_end
+            if [ -n "$PID" ]; then
+                    log_progress_msg " killing $PID "
+                    thread_dump
+                    kill -9 $PID
+                    wait_to_end
+            fi
+        fi
+}
+
+function daemon_clean() {
+    # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
+
+    # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
+    #rm -f ${JIRA_HOME}/plugins/.bundled-plugins ${JIRA_HOME}/plugins/.osgi-plugins ${JIRA_HOME}/tmp/* ${ROOT_DIR}/../work/* ${ROOT_DIR}/../temp/*
+echo .
+}
+
+case "$1" in
+  start)
+    log_daemon_msg "Starting $NAME instance" "$NAME"
+    daemon_start
+    #disable_maintenance
+    ;;
+  stop)
+    log_daemon_msg "Stopping $NAME instance" "$NAME"
+    
+    #enable_maintenance
+    daemon_stop
+    log_end_msg 0
+    ;;
+  clean)
+    # daemon_clean is already part of the daemon_start, but it is here just for covenience
+    daemon_stop
+    daemon_clean
+    ;;
+
+  status)
+    get_PID
+    echo $PID
+    ;;
+  restart)
+    log_daemon_msg "Restarting $NAME instance" "$NAME"
+
+    # if someone stopped jira on purpose (with stop) we will not start it with restart as we consider to be in maintenance mode.
+    # This allows us to restart jira using nagios when it stops responding, as long it wasn't stopped on purpose.
+    #if exit_if_maintenance; then
+    #    clean_exit 1
+    #else
+        daemon_stop
+        daemon_start
+        echo "run time is $(expr `date +%s` - $start_time)s ... stil it could take few minutes until the service is fully up."
+    #fi
+    ;;
+  *)
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status}" || true
+    clean_exit 1
+    ;;
+esac
+
+clean_exit 0

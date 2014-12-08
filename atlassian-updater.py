@@ -850,8 +850,6 @@ for instance,instance_dic in instances.iteritems():
 
     break # if we did one upgrade we'll stop here, we don't want to upgrade several products in a single execution :D
 
-print(instances)
-
 if not product:
    logging.error('No product to be upgraded was found!')
 else:
