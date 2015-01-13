@@ -711,9 +711,9 @@ for instance,instance_dic in instances.iteritems():
 
     for path in products[product]['log']:
         path = path % {'instance':instance, 'path': instance_dic['path']}
+        instances[instance]['log'] = []
         if os.path.exists(path):
-            instances[instance]['log'] = path
-            break
+            instances[instance]['log'].append(path)
 
     logging.debug("Analysing %s instance from %s" % (instance,instances[instance]['path']))
 
@@ -835,14 +835,14 @@ for instance,instance_dic in instances.iteritems():
     
     run('service %s start &' % instance)
 
-    run('pwd && rm %s' % os.path.join(wrkdir,archive))
+    #run('pwd && rm %s' % os.path.join(wrkdir,archive))
 
     # archive old version and keep only the archive
     run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
 
     if os.isatty(sys.stdout.fileno()) and 'log' in instance_dic:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
-       cmd = "tail -F "
+       cmd = "tail "
        for elem in instance_dic['log']:
            cmd += " -F %s" % elem
        logging.debug(cmd)
