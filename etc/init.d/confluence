@@ -63,7 +63,7 @@ export JAVA_HOME=$(/usr/libexec/java_home)
 else
   # detect java location
   if [ -z "${JAVA_HOME+zzz}" ] || [ "${JAVA_HOME+xxx}" = "xxx" ]; then
-    for JAVA_HOME in /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java /usr/lib/jvm/default-java /usr/lib/jvm/java-6-sun /System/Library/Frameworks/JavaVM.framework/Home/
+    for JAVA_HOME in /usr/lib/jvm/java-8-oracle /usr/lib/jvm/java-7-oracle /usr/lib/jvm/java /usr/lib/jvm/default-java /usr/lib/jvm/java-6-sun /System/Library/Frameworks/JavaVM.framework/Home/
     do
         if [ -d "$JAVA_HOME" ]; then break ; fi
     done

@@ -575,11 +575,12 @@ products = {
     'conf/catalina.properties',
     'conf/context.xml',
     'conf/logging.properties',
-'conf/server.xml',
+    'conf/server.xml',
     'conf/web.xml',
     'lib/activation*',
     'lib/apache-log4j-extras*',
     'lib/jira-javamelody*',
+    'lib/klogger*',
     'lib/mail*',
     'lib/newrelic-api.jar', 
 
