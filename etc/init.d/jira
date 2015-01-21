@@ -124,7 +124,7 @@ then
     test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
     test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
 
-    SERVICE_LOG_DIR=log
+    SERVICE_LOG_DIR=logs
     RUN_AS_USER=crowd
     export CATALINA_HOME="${SERVICE_HOME}"
 fi
@@ -231,14 +231,6 @@ function daemon_start() {
       fi
     fi
     cat ${OUTPUT}
-
-    #if tty -s; then
-        # do_interactive_stuff
-        #
-        #echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-    #    tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    #fi
-
 
 }
 

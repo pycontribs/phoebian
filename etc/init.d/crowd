@@ -239,14 +239,6 @@ function daemon_start() {
 
     cat ${OUTPUT} || echo error
 
-    #if tty -s; then
-        # do_interactive_stuff
-        #
-    #    echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-    #    tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    #fi
-
-
 }
 
 

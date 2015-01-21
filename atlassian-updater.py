@@ -28,6 +28,7 @@ import os
 import platform
 import re
 import sys
+import time
 import logging
 from collections import OrderedDict
 from distutils.version import LooseVersion
@@ -833,7 +834,8 @@ for instance,instance_dic in instances.iteritems():
         if os.path.exists(os.path.join(old_dir,f)):
             run('mkdir -p "%s"' % os.path.dirname(os.path.join(instance_dic['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,instance_dic['path'],f))
-    
+
+    time.sleep(5)
     run('service %s start &' % instance)
 
     #run('pwd && rm %s' % os.path.join(wrkdir,archive))
