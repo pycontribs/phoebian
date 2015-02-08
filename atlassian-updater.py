@@ -674,7 +674,7 @@ def modification_date(filename):
 n = modification_date(__file__)
 os.chdir(MYDIR)
 if os.system("git pull -q -u"):
-    logging.error("Critical error, `hg pull -u` returned an error code.")
+    logging.error("Critical error, `git pull -u -q` returned an error code.")
     sys.exit(1)
 
 if n != modification_date(__file__):
