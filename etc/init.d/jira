@@ -347,22 +347,9 @@ EOF
     ;;
 
   status)
-    get_PID
-    #wait_to_end
-    echo $PID
-    touch "$HOME/.maintenance"
-    while :
-    do
-        response=$(curl -L --write-out %{http_code} --silent --output /dev/null $URL)
-        if [ "$response" -eq "200" ]; then
-            rm "$HOME/.maintenance"
-            break
-        sleep 2
-        echo -n "."
-        fi
-    done
-    echo $response
-
+    #get_PID
+    #echo $PID
+    status_of_proc -p $ROOT_DIR/../work/catalina.pid "java" "$NAME" && exit 0 || exit $?
     ;;
 
   restart)

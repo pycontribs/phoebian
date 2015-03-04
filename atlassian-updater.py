@@ -39,6 +39,7 @@ from tendo import colorer
 if 'basestring' not in globals():
    basestring = str
 
+ARCHIVE_DIR='/backups/archive/'
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
 FINAL_MARKER = ('f',)
@@ -841,7 +842,7 @@ for instance,instance_dic in instances.iteritems():
     #run('pwd && rm %s' % os.path.join(wrkdir,archive))
 
     # archive old version and keep only the archive
-    run("pwd && tar cfz %s.tar.gz %s && rm -R %s" % (old_dir,old_dir,old_dir))
+    run("pwd && tar cfz %s%s.tar.gz %s && rm -R %s" % (ARCHIVE_DIR,old_dir,old_dir,old_dir))
 
     if os.isatty(sys.stdout.fileno()) and 'log' in instance_dic:
        logging.info("Starting tail of the logs in order to allow you to see if something went wrong. Press Ctrl-C once to stop it.")
