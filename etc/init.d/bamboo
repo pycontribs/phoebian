@@ -20,6 +20,14 @@ USER=bamboo
 # Location of application's bin directory
 BASE=/opt/atlassian/bamboo
 # Location of Java JDK
+NAME=$APP
+
+if [ -f "/lib/lsb/init-functions" ]; then
+    . /lib/lsb/init-functions
+else # this is for OS X where we do not have them, copy the jira to ~/bin
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    . ${DIR}/lib/lsb/init-functions
+fi
 
 if [ -f /usr/libexec/java_home ]; then
 export JAVA_HOME=$(/usr/libexec/java_home)
@@ -52,8 +60,11 @@ case "$1" in
         sleep 5
         $0 start
         ;;
+    status)
+        status_of_proc -p $ROOT_DIR/../work/catalina.pid "java" "$NAME" && exit 0 || exit $?
+        ;;
   *)
-    echo "Usage: /etc/init.d/$APP {start|restart|stop}"
+    echo "Usage: /etc/init.d/$APP {start|restart|stop|status}"
     exit 1
     ;;
 esac

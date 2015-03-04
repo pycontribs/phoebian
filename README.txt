@@ -19,6 +19,7 @@ The scripts tries to detect the installation location, and we recommend you to u
 
 Installation directories
 /opt/atlassian/jira
+/opt/atlassian/jira-other-instance
 /opt/atlassian/crowd
 /opt/atlassian/confluence
 /opt/atlassian/bamboo
@@ -52,5 +53,5 @@ PORTS : trying to use the default ones, as long they do not overlap.
 Maturity
 ========
 
-This scrip is used in production, with at least 4 hosting servers since 2013. It is not perfect but makes administration tasks much easier and faster, minimising the downtimes.
+This scrip is used in production, with at least 8 hosting servers since 2013. It is not perfect but makes administration tasks much easier and faster, minimising the downtimes.
 

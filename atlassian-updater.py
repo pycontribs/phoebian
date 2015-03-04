@@ -28,6 +28,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import logging
 from collections import OrderedDict
@@ -700,8 +701,9 @@ logging.debug("Detected instances: %s" % instances)
 for instance,instance_dic in instances.iteritems():
     product = instance_dic['product']
     logging.debug("Checking %s ..." % instance)
-    instance_dic['start']='sudo service %s start' % instance
+    instance_dic['start']='sudo service %s start &' % instance
     instance_dic['stop']='sudo service %s stop' % instance
+    instance_dic['started'] = os.system('sudo service %s status' % instance) == 0
 
     for path in products[product]['paths']:
         path = path % {'instance':instance}
@@ -764,7 +766,7 @@ for instance,instance_dic in instances.iteritems():
         s = fp.read()[10:-1]  # "downloads(...)" is not valid json !!! who was the programmer that coded this?
         data = json.loads(s)
 
-        with open('.%s.%s.json' % (feed,product),'w') as outfile:
+        with open('%s.%s.%s.json' % (tempfile.gettempdir(),feed,product),'w') as outfile:
             json.dump(data, outfile, sort_keys = True, indent = 4, ensure_ascii=False)
 
         for d in data:
@@ -836,8 +838,11 @@ for instance,instance_dic in instances.iteritems():
             run('mkdir -p "%s"' % os.path.dirname(os.path.join(instance_dic['path'],f)))
             run('cp -af --preserve=links %s/%s %s/%s' % (old_dir,f,instance_dic['path'],f))
 
-    time.sleep(5)
-    run('service %s start &' % instance)
+    if instance_dic['started']:
+        time.sleep(5)
+        run(instance_dic['start'])
+    else:
+        logging.info("Upgrade made bug instance was not started because it was not started before the upgrade.")
 
     #run('pwd && rm %s' % os.path.join(wrkdir,archive))
 

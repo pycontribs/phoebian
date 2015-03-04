@@ -127,7 +127,7 @@ then
     export CATALINA_HOME="${SERVICE_HOME}"
 fi
 
-echo ${SERVICE_HOME}
+#echo ${SERVICE_HOME}
 
 # read the address where the service is supposed to respond
 PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
