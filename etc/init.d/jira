@@ -347,8 +347,6 @@ EOF
     ;;
 
   status)
-    #get_PID
-    #echo $PID
     status_of_proc -p $ROOT_DIR/../work/catalina.pid "java" "$NAME" && exit 0 || exit $?
     ;;
 
