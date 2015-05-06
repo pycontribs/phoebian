@@ -703,7 +703,7 @@ for instance,instance_dic in instances.iteritems():
     logging.debug("Checking %s ..." % instance)
     instance_dic['start']='sudo service %s start &' % instance
     instance_dic['stop']='sudo service %s stop' % instance
-    instance_dic['started'] = os.system('sudo service %s status' % instance) == 0
+    instance_dic['started'] = os.system('sudo service %s status >>/dev/null' % instance) == 0
 
     for path in products[product]['paths']:
         path = path % {'instance':instance}
