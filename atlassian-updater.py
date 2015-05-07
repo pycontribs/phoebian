@@ -41,6 +41,7 @@ if 'basestring' not in globals():
    basestring = str
 
 ARCHIVE_DIR='/backups/archive/'
+DOWNLOADS_DIR='/backups/downloads/'
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
 FINAL_MARKER = ('f',)
@@ -600,7 +601,7 @@ products = {
     'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
     'keep': ['bin/user.sh','confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties',
 'bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types',
-'lib/*melody*.jar','confluence/lib/*melody*.jar''confluence/WEB-INF/lib/sqljdbc4.jar','.eap'],
+'lib/*melody*.jar','confluence/lib/*melody*.jar','confluence/WEB-INF/lib/sqljdbc4.jar','confluence/WEB-INF/lib/mysql-*.jar','.eap'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,- .*,,'",
     'log': ['%(path)s/logs/catalina.out', '/var/atlassian/application-data/%(instance)s/logs/atlassian-confluence.log'],
@@ -677,7 +678,7 @@ n = modification_date(__file__)
 os.chdir(MYDIR)
 if os.system("git pull -q -u"):
     logging.error("Critical error, `git pull -u -q` returned an error code.")
-    sys.exit(1)
+    #sys.exit(1)
 
 if n != modification_date(__file__):
      logging.warning("We've being updated, we will run the new version")
