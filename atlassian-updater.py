@@ -42,6 +42,11 @@ if 'basestring' not in globals():
 
 ARCHIVE_DIR='/backups/archive/'
 DOWNLOADS_DIR='/backups/downloads/'
+
+
+print(tempfile.gettempdir())
+#os.chdir(tempfile.gettempdir())
+
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
 FINAL_MARKER = ('f',)
@@ -574,6 +579,7 @@ products = {
     'atlassian-jira/WEB-INF/classes/jpm.xml',
     'atlassian-jira/WEB-INF/classes/log4j.properties',
     'atlassian-jira/WEB-INF/classes/seraph-config.xml',
+    'atlassian-jira/WEB-INF/lib/klogger*',
     'bin/setenv.sh',
     'bin/user.sh',
     'conf/catalina.properties',
@@ -675,8 +681,8 @@ def modification_date(filename):
     return datetime.datetime.fromtimestamp(t)
 
 n = modification_date(__file__)
-os.chdir(MYDIR)
-if os.system("git pull -q -u"):
+
+if os.system("git --work-tree=%s pull -q -u" % MYDIR):
     logging.error("Critical error, `git pull -u -q` returned an error code.")
     #sys.exit(1)
 

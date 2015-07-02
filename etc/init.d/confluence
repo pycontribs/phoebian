@@ -21,7 +21,7 @@ if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi 
 
-set -e
+set -ex
 
 if [ -f "/lib/lsb/init-functions" ]; then
     . /lib/lsb/init-functions
@@ -106,6 +106,7 @@ then
 
     mkdir -p ${SERVICE_HOME}/logs
     SERVICE_LOG_DIR=logs
+    RUN_AS_USER=confluence
 fi
 if [[ $SERVICE_HOME == *jira* ]]
 then
@@ -115,6 +116,7 @@ then
     # empty jira ugly banner
     echo "" > ${ROOT_DIR}/jirabanner.txt
     SERVICE_LOG_DIR=log
+    RUN_AS_USER=jira
     export JIRA_HOME="${SERVICE_HOME}"
 fi
 if [[ $SERVICE_HOME == *crowd* ]]
@@ -230,12 +232,13 @@ function daemon_start() {
     fi
     cat ${OUTPUT}
 
-    if tty -s; then
+    #if tty -s; then
         # do_interactive_stuff
         #
         echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-        tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    fi
+        #tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
+        #;;
+    #fi
 
 
 }
@@ -253,7 +256,8 @@ function thread_dump() {
     do
       DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).tdump"
       echo "---" >> ${DUMP}
-      jstack -l $PID >> ${DUMP}
+      set -x
+      su -  -c "jstack -F -l $PID >> ${DUMP}" ${RUN_AS_USER}
       echo "waiting ${delay} seconds..."
       sleep $delay
       let count--
@@ -279,7 +283,7 @@ function tdumper() {
       DUMP="${ROOT_DIR}/../logs/$1"
       echo "---" >> ${DUMP}
       echo "dumping ${DUMP}..."
-      jstack -l $PID  >> ${DUMP} || echo "jstack failed"
+      su - -c "jstack -l $PID  >> ${DUMP}" ${RUN_AS_USER} || echo "jstack failed"
   else
     echo "jstack not found, skipping thread dumping."
   fi
