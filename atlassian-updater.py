@@ -44,10 +44,9 @@ ARCHIVE_DIR='/backups/archive/'
 DOWNLOADS_DIR='/backups/downloads/'
 
 
-print(tempfile.gettempdir())
-#os.chdir(tempfile.gettempdir())
-
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
+
+os.chdir(tempfile.gettempdir())
 
 FINAL_MARKER = ('f',)
 VERSION_RE = re.compile(r'''
@@ -680,13 +679,13 @@ def modification_date(filename):
     t = os.path.getmtime(filename)
     return datetime.datetime.fromtimestamp(t)
 
-n = modification_date(__file__)
+n = modification_date(os.path.join(MYDIR, __file__))
 
 if os.system("git --work-tree=%s pull -q -u" % MYDIR):
     logging.error("Critical error, `git pull -u -q` returned an error code.")
     #sys.exit(1)
 
-if n != modification_date(__file__):
+if n != modification_date(os.path.join(MYDIR, __file__)):
      logging.warning("We've being updated, we will run the new version")
      os.execv(".",sys.argv)
 
