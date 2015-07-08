@@ -681,8 +681,9 @@ def modification_date(filename):
 
 n = modification_date(os.path.join(MYDIR, __file__))
 
-if os.system("git --work-tree=%s pull -q -u" % MYDIR):
-    logging.error("Critical error, `git pull -u -q` returned an error code.")
+cmd = "git -C %s --work-tree=%s pull -q -u" % (MYDIR, MYDIR)
+if os.system(cmd):
+    logging.error("Critical error, `%s` returned an error code." % cmd)
     #sys.exit(1)
 
 if n != modification_date(os.path.join(MYDIR, __file__)):
