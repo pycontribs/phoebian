@@ -16,12 +16,11 @@
 # Instance name is the name of the file, this allows you to create multiple instancess using just symlinks
 NAME=`basename $0`
 STAMP=`date -u +"%Y%m%d-%H%M%S"`
+export NEW_RELIC_APP_NAME=$NAME
 
 if test -f /etc/default/$NAME; then
     . /etc/default/$NAME
 fi 
-
-set -e
 
 if [ -f "/lib/lsb/init-functions" ]; then
     . /lib/lsb/init-functions
@@ -48,15 +47,13 @@ start_time=`date +%s`
 
 function moveallto() {
     local DESTDIR=${1}
-    mkdir -p ${DESTDIR}
+    su - -c "mkdir -p ${DESTDIR}" ${RUN_AS_USER}
     find . -maxdepth 1 -type f -not -name ${DESTDIR} -not -path "./${DESTDIR}/*" -exec mv '{}' "${DESTDIR}/{}" \;
 }
 
 TIMEOUT=30
 OUTPUT=$(mktemp)
 # number of seconds to wait before forcing a stop command
-
-# set -e
 
 if [ -f /usr/libexec/java_home ]; then
 export JAVA_HOME=$(/usr/libexec/java_home)
@@ -104,7 +101,8 @@ then
     test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
     test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
 
-    mkdir -p ${SERVICE_HOME}/logs
+    RUN_AS_USER=confluence
+    su - -c "mkdir -p ${SERVICE_HOME}/logs" ${RUN_AS_USER}
     SERVICE_LOG_DIR=logs
 fi
 if [[ $SERVICE_HOME == *jira* ]]
@@ -115,6 +113,7 @@ then
     # empty jira ugly banner
     echo "" > ${ROOT_DIR}/jirabanner.txt
     SERVICE_LOG_DIR=log
+    RUN_AS_USER=jira
     export JIRA_HOME="${SERVICE_HOME}"
 fi
 if [[ $SERVICE_HOME == *crowd* ]]
@@ -190,16 +189,17 @@ function wait_to_end() {
 
 function daemon_start() {
         # rotating the logs, so we get an empty set for each restart
+
         pushd "$(pwd)" >> /dev/null
-        cd $ROOT_DIR/../logs
-        moveallto $STAMP
+        cd "$ROOT_DIR/../logs"
+        moveallto $ROOT_DIR/../logs/$STAMP
         popd >> /dev/null
 
         daemon_clean
 
 
         # rotating the logs, so we get an empty set for each restart
-        sudo mkdir -p "$SERVICE_HOME/$SERVICE_LOG_DIR"
+        su - -c "mkdir -p $SERVICE_HOME/$SERVICE_LOG_DIR" ${RUN_AS_USER}
         pushd "$(pwd)" >> /dev/null
         cd "$SERVICE_HOME/$SERVICE_LOG_DIR"
         moveallto $STAMP
@@ -207,9 +207,9 @@ function daemon_start() {
 
 
     if [[ $NAME == *jira* ]] ; then
-      sudo mkdir -p $JIRA_HOME/import/attachments
-      sudo mkdir -p $JIRA_HOME/import/mail
-      sudo mkdir -p $JIRA_HOME/caches/indexes/entities/portalpage
+      su - -c "mkdir -p $JIRA_HOME/import/attachments" ${RUN_AS_USER} 
+      su - -c "mkdir -p $JIRA_HOME/import/mail"  ${RUN_AS_USER}
+      su - -c "mkdir -p $JIRA_HOME/caches/indexes/entities/portalpage" ${RUN_AS_USER}
 
       if "${ROOT_DIR}/start-jira.sh" 2>&1 >>${OUTPUT} ; then
         log_end_msg 0
@@ -230,39 +230,15 @@ function daemon_start() {
     fi
     cat ${OUTPUT}
 
-    if tty -s; then
+    #if tty -s; then
         # do_interactive_stuff
         #
         echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-        tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-    fi
+        #tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
+        #;;
+    #fi
 
 
-}
-
-
-function thread_dump() {
-  get_PID
-  count=4
-  delay=10
-
-  if which jstack >/dev/null ; then
-
-    echo "Taking ${count} thread dumps for PID=$PID with ${delay} seconds inbetween..."
-    while [ $count -gt 0 ]
-    do
-      DUMP="${ROOT_DIR}/../logs/threaddump.$PID.$(date +%H%M%S.%N).tdump"
-      echo "---" >> ${DUMP}
-      jstack -l $PID >> ${DUMP}
-      echo "waiting ${delay} seconds..."
-      sleep $delay
-      let count--
-      echo -n "."
-    done
-
-  else
-    echo "jstack not found, skipping thread dumping."
-  fi
 }
 
 function tdumper() {
@@ -275,15 +251,17 @@ function tdumper() {
   fi
 
   get_PID
-  if which jstack >/dev/null ; then
+  if [ -n "$PID" ] ; then
+    if which jstack >/dev/null ; then
       DUMP="${ROOT_DIR}/../logs/$1"
-      echo "---" >> ${DUMP}
-      echo "dumping ${DUMP}..."
-      jstack -l $PID  >> ${DUMP} || echo "jstack failed"
-  else
-    echo "jstack not found, skipping thread dumping."
+      #echo "---" 
+       #>> ${DUMP}
+      #echo "dumping ${DUMP}..."
+      su - -c "jstack -l $PID  >> ${DUMP}" ${RUN_AS_USER} || echo "jstack failed"
+    else
+      echo "WARN: jstack not found, skipping thread dumping."
+    fi
   fi
-  #sleep $delay
 }
 
 
@@ -322,12 +300,12 @@ function daemon_clean() {
 
 case "$1" in
   start)
-    log_daemon_msg "Starting $NAME instance" "$NAME"
+    log_daemon_msg "INFO: Starting $NAME instance" "$NAME"
     daemon_start
 
     ;;
   stop)
-    log_daemon_msg "Stopping $NAME instance" "$NAME"
+    log_daemon_msg "INFO: Stopping $NAME instance" "$NAME"
     touch "$HOME/.maintenance"
     [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : $2" $MAILTO <<EOF
     service $NAME stop
@@ -344,13 +322,17 @@ EOF
     ;;
 
   dump)
-    echo "Creating 5 thread dumps at 20 seconds interval, so you can send them to Atlassian Support, if JIRA goes crazy"
-    tdumper "dump-0.tdump" 20
-    tdumper "dump-1.tdump" 20
-    tdumper "dump-2.tdump" 20
-    tdumper "dump-3.tdump" 20
-    tdumper "dump-4.tdump" 20
-    echo "--- done ---"
+    get_PID
+    if [ -n "$PID" ] ; then
+      echo "INFO: Creating 3 thread dumps at 20 seconds interval, so you can send them to Atlassian Support, if JIRA goes crazy"
+      tdumper "dump-0.tdump" 20
+      tdumper "dump-1.tdump" 20
+      tdumper "dump-2.tdump" 20
+    else
+      echo "WARN: No PID found."
+      exit 2
+    fi
+    echo "INFO: done"
     ;;
 
   status)
