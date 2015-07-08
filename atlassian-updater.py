@@ -616,7 +616,7 @@ products = {
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-[0-9]* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
-    'log': ['%(path)s/apache-tomcat/logs/catalina.out'],
+    'log': ['%(path)s/apache-tomcat/logs/catalina.out','/opt/atlassian/%(instance)s/logs/*.log'],
     'user': 'crowd',
     },
   'bamboo': {
