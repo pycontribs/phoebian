@@ -621,7 +621,7 @@ products = {
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-[0-9]* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
     'min_version':'2.0',
-    'log': ['%(path)s/apache-tomcat/logs/catalina.out'],
+    'log': ['%(path)s/apache-tomcat/logs/catalina.out','/opt/atlassian/%(instance)s/logs/*.log'],
     'user': 'crowd',
     },
   'bamboo': {
@@ -681,8 +681,9 @@ def modification_date(filename):
 
 n = modification_date(os.path.join(MYDIR, __file__))
 
-if os.system("git --work-tree=%s pull -q -u" % MYDIR):
-    logging.error("Critical error, `git pull -u -q` returned an error code.")
+cmd = "git -C %s --work-tree=%s pull -q -u" % (MYDIR, MYDIR)
+if os.system(cmd):
+    logging.error("Critical error, `%s` returned an error code." % cmd)
     #sys.exit(1)
 
 if n != modification_date(os.path.join(MYDIR, __file__)):
