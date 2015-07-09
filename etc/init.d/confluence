@@ -80,8 +80,10 @@ do
     if [ -d "$ROOT_DIR" ]; then break ; fi
 done
 if [[ ! -e "$ROOT_DIR/startup.sh" ]] ; then
-  echo "FATAL: Unable to detect confluence install directory."
-  exit 1
+  if [[ ! -e "$ROOT_DIR/start.sh" ]] ; then
+      echo "FATAL: Unable to detect confluence install directory."
+      exit 1
+  fi
 fi
 
 # TODO: replace HOME detection with reading from config files of the services
@@ -104,6 +106,10 @@ then
     RUN_AS_USER=confluence
     su - -c "mkdir -p ${SERVICE_HOME}/logs" ${RUN_AS_USER}
     SERVICE_LOG_DIR=logs
+    PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
+    SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+    PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
+    PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
 fi
 if [[ $SERVICE_HOME == *jira* ]]
 then
@@ -115,6 +121,10 @@ then
     SERVICE_LOG_DIR=log
     RUN_AS_USER=jira
     export JIRA_HOME="${SERVICE_HOME}"
+    PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
+    SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+    PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
+    PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
 fi
 if [[ $SERVICE_HOME == *crowd* ]]
 then
@@ -124,15 +134,31 @@ then
     SERVICE_LOG_DIR=log
     RUN_AS_USER=crowd
     export CATALINA_HOME="${SERVICE_HOME}"
+    PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
+    SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+    PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
+    PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
+
+fi
+if [[ $SERVICE_HOME == *fisheye* ]]
+then
+    test -x "${ROOT_DIR}/start.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/start.sh" ; exit 1; }
+    test -x "${ROOT_DIR}/stop.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/stop.sh" ; exit 1; }
+
+    SERVICE_LOG_DIR=log
+    RUN_AS_USER=fisheye
+    export CATALINA_HOME="${SERVICE_HOME}"
+    export FISHEYE_INST=${SERVICE_HOME}
+    PROXYNAME=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*proxy-host="\([^"]*\)".*/\1/p' | head -n 1`
+    SCHEME=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*proxy-scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
+    PORT=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*<http.*bind=":\([^"]*\)".*/\1/p' | head -n 1`
+    PROXYPORT=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*proxy-port="\([^"]*\)".*/\1/p' | head -n 1`
+
 fi
 
 #echo ${SERVICE_HOME}
 
 # read the address where the service is supposed to respond
-PROXYNAME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyName="\([^"]*\)".*/\1/p' | head -n 1`
-SCHEME=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
-PORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*<Connector.*port="\([^"]*\)".*/\1/p' | head -n 1`
-PROXYPORT=`cat "${ROOT_DIR}/../conf/server.xml" | sed -ne 's/.*proxyPort="\([^"]*\)".*/\1/p' | head -n 1`
 
 if [[ -z "$PROXYNAME" ]] ; then PROXYNAME=localhost ; fi
 if [[ -z "$SCHEME" ]] ; then SCHEME=http ; fi
@@ -190,20 +216,21 @@ function wait_to_end() {
 function daemon_start() {
         # rotating the logs, so we get an empty set for each restart
 
-        pushd "$(pwd)" >> /dev/null
-        cd "$ROOT_DIR/../logs"
-        moveallto $ROOT_DIR/../logs/$STAMP
-        popd >> /dev/null
+        if [[ -d "$ROOT_DIR/../logs" ]] ; then
+          pushd "$(pwd)" >> /dev/null
+          cd "$ROOT_DIR/../logs"
+          moveallto $ROOT_DIR/../logs/$STAMP
+          popd >> /dev/null
 
-        daemon_clean
+          daemon_clean
 
-
-        # rotating the logs, so we get an empty set for each restart
-        su - -c "mkdir -p $SERVICE_HOME/$SERVICE_LOG_DIR" ${RUN_AS_USER}
-        pushd "$(pwd)" >> /dev/null
-        cd "$SERVICE_HOME/$SERVICE_LOG_DIR"
-        moveallto $STAMP
-        popd >> /dev/null
+          # rotating the logs, so we get an empty set for each restart
+          su - -c "mkdir -p $SERVICE_HOME/$SERVICE_LOG_DIR" ${RUN_AS_USER}
+          pushd "$(pwd)" >> /dev/null
+          cd "$SERVICE_HOME/$SERVICE_LOG_DIR"
+          moveallto $STAMP
+          popd >> /dev/null
+        fi
 
 
     if [[ $NAME == *jira* ]] ; then
@@ -216,8 +243,7 @@ function daemon_start() {
       else
         log_end_msg 1
       fi
-    fi
-    if [[ $NAME == *confluence* ]] ; then
+    elif [[ $NAME == *confluence* ]] ; then
       rm -rf $CONFLUENCE_HOME/plugins-osgi-cache/*
       rm -rf $CONFLUENCE_HOME/bundled-plugins/*
       rm -rf $CONFLUENCE_HOME/plugins-temp/*
@@ -227,17 +253,15 @@ function daemon_start() {
       else
         log_end_msg 1
       fi
+    elif [[ $NAME == *fisheye* ]] ; then
+      if "${ROOT_DIR}/start.sh" 2>&1 >>${OUTPUT} ; then
+        log_end_msg 0
+      else
+        log_end_msg 1
+      fi
+       
     fi
     cat ${OUTPUT}
-
-    #if tty -s; then
-        # do_interactive_stuff
-        #
-        echo "INFO: Starting in interactive mode, tailing the output. Press Ctrl-C to stop the tail."
-        #tail -n 0 -F "${JIRA_HOME}/../log/atlassian-*.log" -F "${JIRA_HOME}/../logs/atlassian-*.log" -F "$ROOT_DIR/../logs/catalina.out"
-        #;;
-    #fi
-
 
 }
 
@@ -288,14 +312,21 @@ function daemon_stop() {
 }
 
 function daemon_clean() {
-    # see https://confluence.atlassian.com/display/GHKB/Upon+Upgrade+to+GreenHopper+6.0.1+the+Agile+Menu+Generates+an+Error
 
-    # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
-    rm -rf ${JIRA_HOME}/plugins/.bundled-plugins/* \
-    	${JIRA_HOME}/plugins/.osgi-plugins/* \
-	${JIRA_HOME}/tmp/* \
-	${ROOT_DIR}/../work/* \
-	${ROOT_DIR}/../temp/* || echo error
+    if [[ $NAME == *confluence* ]] ; then
+       for DIR in /index/plugin /index/edge /index/questions-edge /journal
+       do
+          rm ${SERVICE_HOME}$DIR/* || echo "failed"
+       done
+    fi
+    if [[ $NAME == *jira* ]] ; then
+        # DO NOT REMOVE ${JIRA_HOME}/caches/indexes !!! can mean hours of downtime
+        rm -rf ${JIRA_HOME}/plugins/.bundled-plugins/* \
+       	   ${JIRA_HOME}/plugins/.osgi-plugins/* \
+	   ${JIRA_HOME}/tmp/* \
+	   ${ROOT_DIR}/../work/* \
+	   ${ROOT_DIR}/../temp/* || echo error
+    fi
 }
 
 case "$1" in
