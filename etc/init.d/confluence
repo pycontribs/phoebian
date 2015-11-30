@@ -153,6 +153,8 @@ then
     SCHEME=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*proxy-scheme=\"\([^"]*\)\".*/\1/p' | head -n 1`
     PORT=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*<http.*bind=":\([^"]*\)".*/\1/p' | head -n 1`
     PROXYPORT=`cat "${SERVICE_HOME}/config.xml" | sed -ne 's/.*proxy-port="\([^"]*\)".*/\1/p' | head -n 1`
+    JMXPORT=$((PORT+1))
+    export FISHEYE_OPTS="-Xmx3000m -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=${JMXPORT} -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=127.0.0.1 "
 
 fi
 
@@ -254,6 +256,8 @@ function daemon_start() {
         log_end_msg 1
       fi
     elif [[ $NAME == *fisheye* ]] ; then
+      # this is essential for making ssh work (git clone....)
+      ssh-add
       if "${ROOT_DIR}/start.sh" 2>&1 >>${OUTPUT} ; then
         log_end_msg 0
       else
@@ -294,7 +298,15 @@ function daemon_stop() {
     # this one is very usefull 
     tdumper "threaddump.0.pre-shutdown.tdump"
 
-    SHUTDOWN=1 "${ROOT_DIR}/shutdown.sh" || true
+    if [[ $NAME == *fisheye* ]] ; then
+      # important to reset them because stop process can fail due to them
+      export FISHEYE_OPTS=""
+      SHUTDOWN_CMD="${ROOT_DIR}/stop.sh"
+    else
+      SHUTDOWN_CMD="${ROOT_DIR}/shutdown.sh"
+    fi
+
+    SHUTDOWN=1 ${SHUTDOWN_CMD} || true
     wait_to_end
         if [ -n "$PID" ]; then
             tdumper "threaddump.1.post-shutdown.tdump"

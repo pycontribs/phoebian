@@ -1,0 +1,23 @@
+/* 
+
+    JIRA Stlysheet fixed for bugs ignored by Atlassian 
+
+*/
+
+#issuetype-single-select, 
+#project-single-select, 
+form.aui .aui-ss, 
+.jiraform .aui-ss,
+form.aui .text, 
+form.aui .select, 
+form.aui .multi-select, 
+form.aui .aui-select2-container .select2-choices {
+    max-width: 100% !important;
+}
+
+
+form.aui .long-field,
+form#issue-filter .check-list-select,
+.check-list-select {
+    width: 100% !important;
+}
