@@ -1,12 +1,12 @@
 #! /bin/bash
 
 ### BEGIN INIT INFO
-# Provides:        jira
-# Required-Start:    $local_fs $network $ssh $remote_fs postgresql
-# Required-Stop:    $local_fs $network $ssh $remote_fs postgresql
-# Default-Start:    3 4 5
-# Default-Stop:        0 1 2 6
-# Short-Description:    Jira
+# Provides:            jira
+# Required-Start:      $local_fs $network $ssh $remote_fs postgresql
+# Required-Stop:       $local_fs $network $ssh $remote_fs postgresql
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Jira
 ### END INIT INFO
 #chkconfig: 2345 80 05
 #    JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8086 -Dcom.sun.management.jmxremote.authenticate=false"
@@ -323,8 +323,9 @@ case "$1" in
   stop)
     log_daemon_msg "Stopping $NAME instance [${@:2}]" "$NAME"
     touch "$HOME/.maintenance"
-    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : ${@:2}" $MAILTO <<EOF
+    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop" $MAILTO <<EOF
     service $NAME stop
+    REASON: ${@:2}
 EOF
     #enable_maintenance
     daemon_stop

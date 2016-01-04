@@ -40,13 +40,13 @@ from tendo import colorer
 if 'basestring' not in globals():
    basestring = str
 
-ARCHIVE_DIR='/backups/archive/'
-DOWNLOADS_DIR='/backups/downloads/'
+ARCHIVE_DIR='/var/backups/archive/'
+DOWNLOADS_DIR='/var/backups/downloads/'
 
+os.system('mkdir -p %s' % ARCHIVE_DIR)
 
 MYDIR = os.path.realpath(os.path.abspath(os.path.split(inspect.getfile( inspect.currentframe() ))[0]))
 
-os.chdir(tempfile.gettempdir())
 
 FINAL_MARKER = ('f',)
 VERSION_RE = re.compile(r'''
@@ -569,6 +569,7 @@ products = {
   'jira': { 
     'paths':['/opt/atlassian/%(instance)s'], 
     'keep': [
+    'atlassian-jira/images/icons/priorities/unknown.png',
     'atlassian-jira/includes/decorators/aui-layout/footer.jsp', 
     'atlassian-jira/includes/decorators/aui-layout/head-common.jsp', # patched for new relic
     'atlassian-jira/secure/admin/custom/findattachments.jsp',
@@ -592,8 +593,8 @@ products = {
     'lib/klogger*',
     'lib/mail*',
     'lib/newrelic-api.jar', 
-
-    '.eap'],
+    '.eap',
+    '.auto'],
     'filter_description':'TAR.GZ',
     'version': "cat README.txt | grep -m 1 'JIRA ' | sed -e 's,.*JIRA ,,' -e 's,#.*,,'",
     'version_regex': '^JIRA ([\d\.-]+)#.*',
@@ -605,8 +606,11 @@ products = {
  'confluence': {
     'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
     'keep': ['bin/user.sh','confluence/robots.txt','conf/server.xml','conf/web.xml','conf/catalina.properties','conf/logging.properties',
-'bin/setenv.sh','confluence/WEB-INF/classes/confluence-init.properties','confluence/WEB-INF/classes/mime.types',
-'lib/*melody*.jar','confluence/lib/*melody*.jar','confluence/WEB-INF/lib/sqljdbc4.jar','confluence/WEB-INF/lib/mysql-*.jar','.eap'],
+'bin/setenv.sh',
+'confluence/WEB-INF/classes/confluence-init.properties',
+'confluence/WEB-INF/classes/log4j.properties',
+'confluence/WEB-INF/classes/mime.types',
+'lib/*melody*.jar','confluence/lib/*melody*.jar','confluence/WEB-INF/lib/sqljdbc4.jar','confluence/WEB-INF/lib/mysql-*.jar','.eap','.auto'],
     'filter_description':'Standalone',
     'version': "cat README.txt | grep -m 1 'Atlassian Confluence' | sed -e 's,.*Atlassian Confluence ,,' -e 's,- .*,,'",
     'log': ['%(path)s/logs/catalina.out', '/var/atlassian/application-data/%(instance)s/logs/atlassian-confluence.log'],
@@ -616,7 +620,7 @@ products = {
     }, 
   'crowd': {
     'paths':['/opt/atlassian/%(instance)s','/opt/%(instance)s'],
-    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties','.eap','bin/user.sh'],
+    'keep': ['build.properties','apache-tomcat/bin/setenv.sh','crowd-webapp/WEB-INF/classes/crowd-init.properties','lib/*melody*.jar','crowd-webapp/WEB-INF/classes/log4j.properties','.eap','bin/user.sh','.auto'],
     'filter_description':'TAR.GZ',
     'version':"ls crowd-webapp/WEB-INF/lib/crowd-core-[0-9]* | sed -e 's,.*crowd-core-,,' -e 's,\.jar,,'",
     'size':500+300, # mininum amount of space needed for downloadin and installing the updgrade
@@ -626,7 +630,7 @@ products = {
     },
   'bamboo': {
     'paths':['/opt/atlassian/%(instance)s'],
-    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties','bin/setenv.sh','lib/*melody*.jar','.eap','bin/user.sh'],
+    'keep': ['conf/wrapper.conf','atlassian-bamboo/WEB-INF/classes/bamboo-init.properties','bin/setenv.sh','lib/*melody*.jar','.eap','.auto','bin/user.sh'],
     'filter_description':'TAR.GZ',
     'version': "cat atlassian-bamboo/META-INF/maven/com.atlassian.bamboo/atlassian-bamboo-web-app/pom.properties | grep -m 1 'version=' | sed -e 's,.*version=,,' -e 's,-.*,,'",
     'size':200+300, # mininum amount of space needed for downloadin and installing the updgrade
@@ -637,6 +641,21 @@ products = {
 
 }
 
+def is_major(v1s, v2s):
+    """
+    Returns True if the difference between the two version strings is a major one. A Minor one means that only the 3rd number is different.
+    """
+    global options
+
+    # if the major switch is enabled, this will return False in order to allow upgrades
+    if options.major:
+        return False
+
+    v1 = str(v1s).split('.')
+    v2 = str(v2s).split('.')
+    if v1[0] != v2[0] or v1[1] != v2[1]:
+        return True
+    return False
 
 def get_cmd_output(cmd):
     stdout_handle = os.popen(cmd)
@@ -650,6 +669,7 @@ parser = OptionParser()
 parser.add_option("-y", dest="force", default=False, action="store_true",
                   help="Force updater to do the peform the upgrade.")
 parser.add_option("-q", dest="quiet", default=False, action="store_true",help="no output if nothing is wrong, good for cron usage.")
+parser.add_option("-m", dest="major", default=False, action="store_true",help="upgrade major versions, should be used with a lot of care")
 parser.add_option("-p", dest="product", default='*', help="which product to update, by default is * (all)")
 
 (options, args) = parser.parse_args()
@@ -667,7 +687,11 @@ logging.basicConfig(level=loglevel,
                     )
 
 logging.debug("Detecting installed Atlassian instances...")
-#sys.exit()
+
+TMPDIR=tempfile.gettempdir()
+logging.info("Changing current directory to: %s" % TMPDIR)
+os.chdir(TMPDIR)
+
 
 def enable_logging():
     #logging.getLogger().setLevel(logging.DEBUG)
@@ -700,25 +724,36 @@ instances = OrderedDict()
 for p in products:
     if options.product == '*' or p == options.product:
         for file in os.listdir('/etc/init.d' ):
-            if fnmatch.fnmatch(file, '%s*' % p):
+            if fnmatch.fnmatch(file, '%s*' % p) and '@' not in file:
                 instances[file]={"product":p}
+        for file in os.listdir('/lib/systemd/system' ):
+            if fnmatch.fnmatch(file, '%s*.service' % p) and '@' not in file:
+                instances[file.split('.')[0]]={"product":p}
 
 logging.debug("Detected instances: %s" % instances)
 
 for instance,instance_dic in instances.iteritems():
     product = instance_dic['product']
     logging.debug("Checking %s ..." % instance)
-    instance_dic['start']='sudo service %s start &' % instance
-    instance_dic['stop']='sudo service %s stop' % instance
-    instance_dic['started'] = os.system('sudo service %s status >>/dev/null' % instance) == 0
+    if os.path.isfile("/etc/init.d/%s" % instance):
+        instance_dic['start']='sudo service %s start &' % instance
+        instance_dic['stop']='sudo service %s stop' % instance
+        instance_dic['started'] = os.system('sudo service %s status >>/dev/null' % instance) == 0
+    elif os.path.isfile("/lib/systemd/system/%s.service" % instance):
+        instance_dic['start']='sudo systemctl start %s &' % instance
+        instance_dic['stop']='sudo systemctl stop %s' % instance
+        instance_dic['started'] = os.system('sudo systemctl status %s >>/dev/null' % instance) == 0
+    else:
+        raise NotImplemented()
 
     for path in products[product]['paths']:
         path = path % {'instance':instance}
+        logging.debug(path)
         if os.path.exists(path):
             instances[instance]['path'] = path
             break
     if 'path' not in instances[instance]:
-        print("Unable to find path of %s" % var)
+        print("Unable to find 'path' of %s : %s" % (instance, instances[instance]))
         sys.exit(1)
 
     for path in products[product]['log']:
@@ -736,7 +771,7 @@ for instance,instance_dic in instances.iteritems():
         instances[instance]['start']=products[product]['path']+'bin/start-%s.sh' % product
         instances[instance]['stop']=products[product]['path']+'bin/stop-%s.sh' % product
 
-    elif not os.path.isfile('/etc/init.d/%s' % product) or not os.path.exists(instance_dic['path']):
+    elif not os.path.exists(instance_dic['path']):
         logging.info("`%s` not found..." % product)
         continue
  
@@ -758,51 +793,104 @@ for instance,instance_dic in instances.iteritems():
         continue
 
     eap = os.path.isfile(os.path.join(instances[instance]['path'],'.eap'))
-    logging.info('%s has EAP=%s' % (instance, eap))
+    auto = os.path.isfile(os.path.join(instances[instance]['path'],'.auto'))
+    logging.info('%s has eap=%s auto_upgrade=%s' % (instance, eap, auto))
 
     feeds = ['current']
+    #feeds = ['archived', 'current']
     if eap:
-        feeds = ['current','eap']
+        feeds = ['current','eap', 'archived']
 
     version = None
     url = None
     for feed in feeds:
+        if product == 'jira':
+            brand = 'jira-software'
+        else:
+            brand = product
 
-        json_url = "https://my.atlassian.com/download/feeds/%s/%s.json" % (feed,product)
+        # https://my.atlassian.com/download/feeds/archived/confluence.json
+
+        json_url = "https://my.atlassian.com/download/feeds/%s/%s.json" % (feed, brand)
         fp = codecs.getreader("latin-1")(urllib2.urlopen(json_url))
         s = fp.read()[10:-1]  # "downloads(...)" is not valid json !!! who was the programmer that coded this?
         data = json.loads(s)
 
-        with open('%s.%s.%s.json' % (tempfile.gettempdir(),feed,product),'w') as outfile:
+        with open('%s/%s.%s.json' % (tempfile.gettempdir(),feed,product),'w') as outfile:
             json.dump(data, outfile, sort_keys = True, indent = 4, ensure_ascii=False)
 
-        for d in data:
-          if 'Unix' in d['platform'] and 'Cluster' not in d['description'] and products[product]['filter_description'] in d['description'] and '-OD' not in d['version']:
-            xx = suggest_normalized_version(d['version'])
-            if not xx:
-                raise NotImplementedError("Unable to normalize %s" % d['version'])
-            if not version:
-                version = NormalizedVersion(xx)
+        release_notes = ''
+        try:
+            for d in data:
+            
                 url = d['zipUrl']
+                #print(url)
                 release_notes = d['releaseNotes']
-            else:
-                new_version = NormalizedVersion(xx)
-                if version < new_version:
-                    logging.debug("Found a newer version %s in '%s' feed, picking it instead of %s." % (new_version,feed,version))
-                    version = new_version
-                    url = d['zipUrl']
-                    release_notes = d['releaseNotes']
-            break
-#    if not url:
-#    print(url, version)
 
-    logging.debug("%s: Compare version %s with %s" % (instance, version, current_version))
+                xx = ''
+#                    products[product]['filter_description'] in d['description'] and \
+
+                if 'Unix' in d['platform'] and \
+                    'Cluster' not in d['description'] and \
+                    '-OD' not in d['version'] and \
+                     d['zipUrl'] and \
+                     d['zipUrl'].endswith('tar.gz'):
+                    #logging.debug(d)
+
+                    try:
+                        xx = suggest_normalized_version(d['version'])
+                        if not xx:
+                            raise NotImplementedError("Unable to normalize %s" % d['version'])
+                    except Exception as e:
+                        logging.error(e)
+                        continue
+                else:
+                    continue
+
+                #logging.debug(xx)
+
+                if not xx: continue
+
+                if not version:
+                    version = NormalizedVersion(xx)
+                else:
+                    new_version = NormalizedVersion(xx)
+                    #logging.debug("Found %s" % new_version)
+                    #logging.debug("%s %s %s", d['version'], xx, new_version)
+                    if version < new_version and not is_major(version, new_version):
+                        logging.debug("Found a newer version %s in '%s' feed, picking it instead of %s." % (new_version,feed,version))
+                        version = new_version
+                        url = d['zipUrl']
+                        release_notes = d['releaseNotes']
+                #break
+
+                logging.debug("%s: Compare version %s with %s" % (instance, version, current_version))
+                if version <= current_version:
+                    logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
+                    continue
+                else:
+                    break
+
+        except Exception as e:
+            if type(e) == IrrationalVersionError:
+               logging.error(e)
+               continue
+            else:
+               raise e
+
+
+    if not url or not release_notes:
+        logging.error("WTH... %s %s" %  (url, release_notes))
+        continue
+
+    if not url.endswith('.tar.gz'):
+        #logging.error('Unknown format for %s' % url)
+        continue
+
     if version <= current_version:
-      logging.info("Update found %s version %s and latest release is %s, we'll do nothing." % (product, current_version, version))
-      continue
-    else:
-      enable_logging()
-    
+        logging.debug("Compared %s with %s ..." % (version, current_version))
+        continue
+
     #if current_version < LooseVersion(products[product]['min_version']):
     #  logging.error('The version of %s found (%s) is too old for automatic upgrade.' % (product,current_version))
     #  continue
@@ -827,14 +915,14 @@ for instance,instance_dic in instances.iteritems():
         logging.error("Execution halted because we already found existing old file/dir (%s or %s.tar.gz). This would usually indicate an incomplete upgrade." % (old_dir,old_dir)) 
         sys.exit(1)
 
-    if not eap:
+    if not auto:
       # for eap we upgrade without needing -y parameter
       if not options.force:
-        logging.info("Skipping next steps because you did not call script with -y parameter.")
+        logging.info("Skipping next steps because you did not call script with -y parameter, nor we were able to detect the '.auto' file in installation home directory.")
         continue
 
     reason = "Upgrade of %s instance initiated. Check %s" % (instance, release_notes)
-    run('service %s stop "%s"|| echo ignoring stop failure because it could also be already stopped' % (instance, reason))
+    run('service %s stop "%s" || echo ignoring stop failure because it could also be already stopped' % (instance, reason))
     run('mv %s %s' % (instance_dic['path'],old_dir))
     run('mv %s/%s %s' % (wrkdir,dirname,instance_dic['path']))
     run('useradd -m %s || echo ""' % (products[product]['user']))

@@ -118,7 +118,7 @@ then
     test -x "${ROOT_DIR}/startup.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/startup.sh" ; exit 1; }
     test -x "${ROOT_DIR}/shutdown.sh" || { echo "FATAL: Unable to find ${ROOT_DIR}/shutdown.sh" ; exit 1; }
 
-    SERVICE_LOG_DIR=log
+    SERVICE_LOG_DIR=logs
     RUN_AS_USER=crowd
     #export CATALINA_HOME="${SERVICE_HOME}"
     #echo CATALINA_HOME="${SERVICE_HOME}"
@@ -332,9 +332,9 @@ case "$1" in
   stop)
     log_daemon_msg "Stopping $NAME instance" "$NAME"
     touch "$HOME/.maintenance"
-    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop : $2" $MAILTO <<EOF
+    [[ ! -z "$MAILTO" ]] && mail -s "service $NAME stop" $MAILTO <<EOF
     service $NAME stop
-    Reason: $2
+    REASON: ${@:2}
 EOF
     #enable_maintenance
     daemon_stop
@@ -360,6 +360,19 @@ EOF
     status_of_proc -p $ROOT_DIR/../work/catalina.pid "java" "$NAME" && exit 0 || exit $?
     ;;
 
+  support)
+     if [[ ! -f "$HOME/.forward" ]]; then
+         echo "Error: you must write your email address to ~/.forward file in order to auto-raise support tickets."
+         exit 1
+     fi
+     set -ex
+     EMAIL=$(cat "$HOME/.forward")
+     echo $EMAIL
+     zip -r /tmp/${NAME}_support_${STAMP}.zip "${SERVICE_HOME}/logs/"  "$ROOT_DIR/../logs/"
+     echo "$@" | EMAIL="$EMAIL" mutt -a /tmp/${NAME}_support_${STAMP}.zip -s "$NAME support" -c "crowd-support-system@atlassian.com"
+
+    ;;
+
   restart)
     log_daemon_msg "Restarting $NAME instance" "$NAME"
 
@@ -375,7 +388,7 @@ EOF
     #fi
     ;;
   *)
-    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status|dump}" || true
+    log_action_msg "Usage: /etc/init.d/$NAME {start|stop|clean|restart|status|dump|support}" || true
     clean_exit 1
     ;;
 esac
